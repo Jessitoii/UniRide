@@ -1,216 +1,424 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, Button } from 'react-native';
+'use client';
+
+import React, { useState, useCallback } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  TextInput, 
+  Image, 
+  ScrollView,
+  ActivityIndicator,
+  useColorScheme,
+  Alert,
+  Platform
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { BASE_URL } from '../../env';
+import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const CarDetail = () => {
-  const [brand, setBrand] = useState('');
-  const [model, setModel] = useState('');
-  const [photo, setPhoto] = useState<string | null>(null);
+// Local imports
+import { BASE_URL } from '../../env';
+import { lightTheme, darkTheme, ThemeType } from '../../styles/theme';
+
+// Types
+interface CarFormData {
+  brand: string;
+  model: string;
+  photoUri: string | null;
+}
+
+export default function CarDetail() {
+  // State
+  const [formData, setFormData] = useState<CarFormData>({
+    brand: '',
+    model: '',
+    photoUri: null,
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // Theme
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  
+  // Router
   const router = useRouter();
 
-  const handleSave = async () => {
+  // Form change handlers
+  const handleChange = (field: keyof CarFormData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    setErrorMessage(null); // Clear error on input change
+  };
+
+  // Image picker
+  const pickImage = useCallback(async () => {
+    try {
+      // Request permission if needed
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert(
+          "Permission Required", 
+          "You need to grant access to your photo library to select an image."
+        );
+        return;
+      }
+      
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setFormData(prev => ({ ...prev, photoUri: result.assets[0].uri }));
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      setErrorMessage('Could not access the image library');
+    }
+  }, []);
+
+  // Form validation
+  const validateForm = (): boolean => {
+    if (!formData.brand.trim()) {
+      setErrorMessage('Please enter your car brand');
+      return false;
+    }
+    
+    if (!formData.model.trim()) {
+      setErrorMessage('Please enter your car model');
+      return false;
+    }
+    
+    return true;
+  };
+
+  // Save car details
+  const handleSave = useCallback(async () => {
+    if (!validateForm()) return;
+    
+    setIsLoading(true);
+    setErrorMessage(null);
+    
     try {
       const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${BASE_URL}/api/cars`, {
+      
+      if (!token) {
+        setErrorMessage('You must be logged in to save your car details');
+        return;
+      }
+      
+      // First save the car details
+      const carResponse = await fetch(`${BASE_URL}/api/cars`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ brand, model }),
+        body: JSON.stringify({ 
+          brand: formData.brand, 
+          model: formData.model 
+        }),
       });
 
-      if (response.ok) {
-        const car = await response.json();
-        if (photo) {
-          const formData = new FormData();
-          formData.append('photo', {
-            uri: photo,
-            type: 'image/jpeg',
-            name: 'car.jpg',
-          } as any);
-
-          const photoResponse = await fetch(`${BASE_URL}/api/cars/${car.id}/photo`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-            body: formData,
-          });
-
-          if (!photoResponse.ok) {
-            const errorText = await photoResponse.text();
-            console.error('Error uploading photo:', errorText);
-            alert('Error uploading photo');
-            return;
-          }
-        }
-        alert('Car details saved successfully');
-      } else {
-        const errorText = await response.text();
-        console.error('Error saving car details:', errorText);
-        alert('Error saving car details');
+      if (!carResponse.ok) {
+        const errorData = await carResponse.json();
+        throw new Error(errorData.message || 'Failed to save car details');
       }
+
+      const car = await carResponse.json();
+      
+      // Upload car photo if provided
+      if (formData.photoUri) {
+        const photoFormData = new FormData();
+        
+        // Prepare the image for upload
+        const filename = formData.photoUri.split('/').pop() || 'car.jpg';
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+        
+        photoFormData.append('photo', {
+          uri: Platform.OS === 'android' 
+            ? formData.photoUri 
+            : formData.photoUri.replace('file://', ''),
+          type,
+          name: filename,
+        } as any);
+
+        const photoResponse = await fetch(`${BASE_URL}/api/cars/${car.id}/photo`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: photoFormData,
+        });
+
+        if (!photoResponse.ok) {
+          throw new Error('Failed to upload car photo');
+        }
+      }
+      
+      Alert.alert(
+        "Success",
+        "Your car details have been saved successfully",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
     } catch (error) {
       console.error('Error saving car details:', error);
-      alert('An unexpected error occurred');
+      setErrorMessage(error instanceof Error ? error.message : 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
     }
-  };
-
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setPhoto(result.assets[0].uri);
-    }
-  };
-
+  }, [formData, router]);
+  
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Back</Text>
+    <ScrollView 
+      style={styles(theme).container}
+      contentContainerStyle={styles(theme).contentContainer}
+    >
+      {/* Header */}
+      <View style={styles(theme).header}>
+        <TouchableOpacity 
+          style={styles(theme).backButton} 
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons name="arrow-back" size={24} color={theme.colors.textDark} />
         </TouchableOpacity>
-        <Text style={styles.headerText}>ARABA Ayarları</Text>
+        <Text style={styles(theme).headerText}>Car Details</Text>
       </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Otomobil Markası</Text>
-        <TextInput
-          style={styles.inputBox}
-          placeholder="Type here to search for brand"
-          value={brand}
-          onChangeText={setBrand}
-        />
-        <Text style={styles.helperText}>Araba markanızı listeden seçebilirsiniz</Text>
+      
+      {/* Error message */}
+      {errorMessage && (
+        <View style={styles(theme).errorContainer}>
+          <MaterialIcons name="error-outline" size={20} color={theme.colors.error} />
+          <Text style={styles(theme).errorText}>{errorMessage}</Text>
+        </View>
+      )}
+      
+      {/* Form sections */}
+      <View style={styles(theme).formSection}>
+        <Text style={styles(theme).sectionTitle}>Basic Information</Text>
+        <Text style={styles(theme).sectionDescription}>
+          Please provide your car details for better identification
+        </Text>
+        
+        {/* Brand field */}
+        <View style={styles(theme).inputGroup}>
+          <Text style={styles(theme).label}>Car Brand</Text>
+          <TextInput
+            style={styles(theme).input}
+            placeholder="Select your car brand"
+            placeholderTextColor={theme.colors.textLight}
+            value={formData.brand}
+            onChangeText={(text) => handleChange('brand', text)}
+          />
+          <Text style={styles(theme).helperText}>
+            Choose your car brand from the list
+          </Text>
+        </View>
+        
+        {/* Model field */}
+        <View style={styles(theme).inputGroup}>
+          <Text style={styles(theme).label}>Car Model</Text>
+          <TextInput
+            style={styles(theme).input}
+            placeholder="Select your car model"
+            placeholderTextColor={theme.colors.textLight}
+            value={formData.model}
+            onChangeText={(text) => handleChange('model', text)}
+          />
+          <Text style={styles(theme).helperText}>
+            Please select your car brand first
+          </Text>
+        </View>
       </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Otomobil Modeli</Text>
-        <TextInput
-          style={styles.inputBox}
-          placeholder="Type here to search for model"
-          value={model}
-          onChangeText={setModel}
-        />
-        <Text style={styles.helperText}>Lütfen önce arabanızın markasını seçin</Text>
-      </View>
-      <View style={styles.photoSection}>
-        <Text style={styles.label}>Otomobilinizin Fotoğrafı</Text>
-        <TouchableOpacity style={styles.photoBox} onPress={pickImage}>
-          {photo ? (
-            <Image source={{ uri: photo }} style={styles.photo} />
+      
+      {/* Photo section */}
+      <View style={styles(theme).formSection}>
+        <Text style={styles(theme).sectionTitle}>Car Photo</Text>
+        <Text style={styles(theme).sectionDescription}>
+          Add a clear photo of your car to help passengers identify you
+        </Text>
+        
+        <TouchableOpacity 
+          style={styles(theme).photoContainer} 
+          onPress={pickImage}
+          activeOpacity={0.8}
+        >
+          {formData.photoUri ? (
+            <Image 
+              source={{ uri: formData.photoUri }} 
+              style={styles(theme).photo}
+              resizeMode="cover"
+            />
           ) : (
-            <Text style={styles.photoText}>Select a photo</Text>
+            <View style={styles(theme).photoPlaceholder}>
+              <MaterialIcons name="add-a-photo" size={48} color={theme.colors.primary} />
+              <Text style={styles(theme).photoPlaceholderText}>
+                Tap to add a photo
+              </Text>
+            </View>
           )}
         </TouchableOpacity>
-        <Text style={styles.helperText}>Lütfen yolcuların sizi daha kolay tanıyabilmesi için güncel bir fotoğraf kullanınız</Text>
+        
+        <Text style={styles(theme).helperText}>
+          Please use a recent photo of your car to help passengers recognize it easily
+        </Text>
       </View>
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-        <Text style={styles.saveButtonText}>Kaydet</Text>
+      
+      {/* Save button */}
+      <TouchableOpacity
+        style={[
+          styles(theme).saveButton,
+          (isLoading || !formData.brand || !formData.model) && styles(theme).saveButtonDisabled
+        ]}
+        onPress={handleSave}
+        disabled={isLoading || !formData.brand || !formData.model}
+        activeOpacity={0.8}
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color={theme.colors.white} />
+        ) : (
+          <Text style={styles(theme).saveButtonText}>Save Car Details</Text>
+        )}
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
-};
+}
 
-const styles = StyleSheet.create({
+/**
+ * Component styles using dynamic theme system
+ */
+const styles = (theme: ThemeType) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+  },
+  contentContainer: {
+    paddingBottom: theme.spacing.xl,
   },
   header: {
-    width: '100%',
-    height: 72,
-    backgroundColor: 'white',
-    shadowColor: 'rgba(0, 0, 0, 0.12)',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingTop: theme.spacing['3xl'],
+    paddingBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    backgroundColor: theme.colors.white,
+    ...theme.shadows.sm,
   },
   backButton: {
-    marginRight: 16,
-  },
-  backButtonText: {
-    color: 'black',
-    fontSize: 16,
-  },
-  headerText: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: 'black',
-  },
-  section: {
-    width: '100%',
-    paddingHorizontal: 16,
-    marginVertical: 8,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: 'black',
-  },
-  inputBox: {
-    width: '100%',
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-    marginVertical: 4,
-  },
-  helperText: {
-    fontSize: 12,
-    color: 'rgba(0, 0, 0, 0.5)',
-  },
-  photoSection: {
-    width: '100%',
-    paddingHorizontal: 16,
-    marginVertical: 8,
-  },
-  photoBox: {
-    width: '100%',
-    height: 220,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 8,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 4,
+    marginRight: theme.spacing.sm,
   },
-  photoText: {
-    textAlign: 'center',
-    color: 'black',
-    fontSize: 16,
+  headerText: {
+    ...theme.textStyles.header2,
+    color: theme.colors.textDark,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.error + '15',
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginHorizontal: theme.spacing.lg,
+    marginTop: theme.spacing.md,
+  },
+  errorText: {
+    ...theme.textStyles.body,
+    color: theme.colors.error,
+    marginLeft: theme.spacing.sm,
+    flex: 1,
+  },
+  formSection: {
+    marginTop: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  sectionTitle: {
+    ...theme.textStyles.header3,
+    color: theme.colors.textDark,
+    marginBottom: theme.spacing.xs,
+  },
+  sectionDescription: {
+    ...theme.textStyles.body,
+    color: theme.colors.textLight,
+    marginBottom: theme.spacing.md,
+  },
+  inputGroup: {
+    marginBottom: theme.spacing.md,
+  },
+  label: {
+    ...theme.textStyles.bodySmall,
     fontWeight: '500',
+    color: theme.colors.textDark,
+    marginBottom: theme.spacing.xs,
+  },
+  input: {
+    height: 48,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.md,
+    color: theme.colors.textDark,
+    fontSize: 16,
+  },
+  helperText: {
+    ...theme.textStyles.caption,
+    color: theme.colors.textLight,
+    marginTop: theme.spacing.xs,
+  },
+  photoContainer: {
+    aspectRatio: 4/3,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    marginVertical: theme.spacing.sm,
   },
   photo: {
     width: '100%',
     height: '100%',
-    borderRadius: 8,
+    borderRadius: theme.borderRadius.md,
   },
-  saveButton: {
-    width: '90%',
-    paddingVertical: 12,
-    backgroundColor: 'black',
-    borderRadius: 8,
+  photoPlaceholder: {
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 16,
+    backgroundColor: theme.colors.card,
+  },
+  photoPlaceholderText: {
+    ...theme.textStyles.body,
+    color: theme.colors.primary,
+    marginTop: theme.spacing.sm,
+  },
+  saveButton: {
+    marginTop: theme.spacing.xl,
+    marginHorizontal: theme.spacing.lg,
+    height: 52,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...theme.shadows.base,
+  },
+  saveButtonDisabled: {
+    backgroundColor: theme.colors.primary + '80',
+    ...theme.shadows.sm,
   },
   saveButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '500',
+    ...theme.textStyles.button,
+    color: theme.colors.white,
   },
-});
-
-export default CarDetail; 
+}); 

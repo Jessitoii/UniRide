@@ -11,5 +11,10 @@ export type RootStackParamList = {
   ChatScreen: { roomId: string; currentUserId: string; recipientId: string };
   CarDetail: undefined;
   Wallet: undefined;
+  LoginScreen: undefined;
+  SearchLocationScreen: undefined;
+  Drawer: undefined;
+  Settings: undefined;
+  Home: undefined;
   // Add other screen types here
 }; 

@@ -57,6 +57,7 @@ app.use('/api/posts', require('./routes/posts'));
 app.use('/api/review', require('./routes/reviews'));
 app.use('/api/chat', chatRoutes);
 app.use('/api/cars', require('./routes/cars'));
+app.use('/api/notifications', require('./routes/nottifications'));
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {

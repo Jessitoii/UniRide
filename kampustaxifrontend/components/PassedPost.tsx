@@ -1,24 +1,28 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 interface PassedPostProps {
-  title: string;
+  from: string;
+  to: string;
   date: string;
   time: string;
   price: string;
 }
 
-const PassedPost: React.FC<PassedPostProps> = ({ title, date, time, price }) => {
+const PassedPost: React.FC<PassedPostProps> = ({ from, to, date, time, price }) => {
   return (
     <View style={styles.container}>
       <View style={styles.iconContainer}>
-        <Text style={styles.icon}>📅</Text>
+        <MaterialIcons name="history" size={24} color="#4b39ef" />
       </View>
       <View style={styles.infoContainer}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.dateTime}>{`${date} - ${time}`}</Text>
+        <Text style={styles.title}>{from} 
+            <MaterialIcons name="arrow-forward" size={24} color="#4b39ef" />
+           {to}</Text>
+        <Text style={styles.dateTime}>{date}</Text>
       </View>
-      <Text style={styles.price}>{price}</Text>
+      <Text style={styles.price}>{price + " ₺"}</Text>
     </View>
   );
 };

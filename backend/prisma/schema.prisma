@@ -17,7 +17,7 @@ model User {
   birthDate      DateTime
   university     String
   faculty        String
-  stars          Int      @default(5)
+  stars          Float      @default(5.0)
   bio            String?
   posts          Post[]   @relation("PostUser") // Relation to Post
   interestedIn   InterestedUser[] // Relation to UserPost join model
@@ -124,4 +124,45 @@ model Transaction {
   amount    Float
   createdAt DateTime @default(now())
   wallet    Wallet   @relation(fields: [walletId], references: [id])
+}
+
+// Define notification types
+enum NotificationType {
+  ride
+  match
+  payment
+  system
+}
+
+// Define reference model types
+enum ReferenceModel {
+  Post
+  User
+  Payment
+}
+
+// Notification model
+model Notification {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String          @db.ObjectId
+  type        NotificationType
+  title       String
+  message     String
+  isRead      Boolean         @default(false)
+  relatedId   String?         @db.ObjectId
+  refModel    ReferenceModel?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  // Relations
+  
+  // Optional polymorphic relations 
+  // (You'll need to uncomment and adjust based on your schema)
+  // post        Post?           @relation(fields: [relatedId], references: [id])
+  // relatedUser User?           @relation("RelatedToUser", fields: [relatedId], references: [id])
+  // payment     Payment?        @relation(fields: [relatedId], references: [id])
+
+  @@index([userId])
+  @@index([relatedId])
+  @@map("notifications")
 }

@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
 const auth = require('../middleware/auth'); // Import the auth middleware
+const { PrismaClient } = require('@prisma/client'); 
+const { createNotification } = require('../services/notificationService');
 
 const prisma = new PrismaClient();
 
@@ -114,7 +115,11 @@ router.get('/:id', async (req, res) => {
     const post = await prisma.post.findUnique({
       where: { id },
       include: {
-        user: true,
+        user: {
+          include:{
+            car: true,
+          }
+        },
         interestedUsers: {
           select: {
             user: true,
@@ -130,6 +135,8 @@ router.get('/:id', async (req, res) => {
     }
 
     res.json(post);
+    console.log(post);
+    
   } catch (error) {
     console.error('Error fetching post:', error);
     res.status(500).json({ message: 'Server error' });
@@ -154,7 +161,13 @@ router.post('/', auth, async (req, res) => {
         datetimeEnd: new Date(datetimeEnd),
         price,
       },
+      include: {
+        user: true,
+      },
     });
+
+    // No notifications for post creation as it doesn't directly affect other users
+    // We can add system notifications here in the future if needed
 
     res.status(201).json(post);
   } catch (error) {
@@ -256,6 +269,28 @@ router.post('/:id/interested', auth, async (req, res) => {
       },
     });
 
+    // Fetch post and user details for the notification
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      include: { user: true }
+    });
+
+    const interestedUser = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (post && post.user && interestedUser) {
+      // Notify the post owner that someone is interested in their ride
+      await createNotification(
+        post.user.id,
+        'match',
+        'Yeni İlgilenen Yolcu!',
+        `${interestedUser.name} güzergahınızla ilgileniyor.`,
+        postId,
+        'Post'
+      );
+    }
+
     res.status(201).json({ message: 'User added to interested list', userPost });
   } catch (error) {
     console.error('Error adding interested user:', error);
@@ -266,11 +301,13 @@ router.post('/:id/interested', auth, async (req, res) => {
 router.post('/:postId/match', auth, async (req, res) => {
   const { postId } = req.params;
   const { matchedUserId } = req.body;
+  const driverId = req.user.userId;
 
   try {
     const post = await prisma.post.update({
       where: { id: postId },
       data: { matchedUserId },
+      include: { user: true }
     });
 
     const matchedUser = await prisma.user.update({
@@ -278,9 +315,106 @@ router.post('/:postId/match', auth, async (req, res) => {
       data: { matchedPosts: { connect: { id: postId } } },
     });
 
+    // Create notification for the matched passenger
+    await createNotification(
+      matchedUserId,
+      'match',
+      'Yolculuk Eşleşmesi Onaylandı!',
+      `${post.user.name} sizinle yolculuğu paylaşmayı onayladı.`,
+      postId,
+      'Post'
+    );
+
+    // Create notification for the driver
+    await createNotification(
+      driverId,
+      'match',
+      'Yolcu Eşleşmesi Tamamlandı',
+      `${matchedUser.name} ile yolculuk eşleşmeniz tamamlandı.`,
+      postId,
+      'Post'
+    );
+
     res.json({ post, matchedUser });
   } catch (error) {
     console.error('Error matching user:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// New endpoint to cancel a match
+router.post('/:postId/cancel-match', auth, async (req, res) => {
+  const { postId } = req.params;
+  const userId = req.user.userId;
+
+  try {
+    // Get the post with current match info
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      include: { user: true }
+    });
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const isDriver = post.userId === userId;
+    const matchedUserId = post.matchedUserId;
+    
+    // Only allow the driver or matched passenger to cancel
+    if (!isDriver && matchedUserId !== userId) {
+      return res.status(403).json({ message: 'Not authorized to cancel this match' });
+    }
+
+    // Get the other user's info for notification
+    const otherUserId = isDriver ? matchedUserId : post.userId;
+    const otherUser = await prisma.user.findUnique({
+      where: { id: otherUserId }
+    });
+    
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    // Update the post to remove the match
+    await prisma.post.update({
+      where: { id: postId },
+      data: { matchedUserId: null }
+    });
+
+    // If passenger was matched, remove the connection
+    if (matchedUserId) {
+      await prisma.user.update({
+        where: { id: matchedUserId },
+        data: { matchedPosts: { disconnect: { id: postId } } }
+      });
+    }
+
+    // Create notifications for both parties
+    if (otherUser && currentUser) {
+      await createNotification(
+        otherUserId,
+        'ride',
+        'Yolculuk İptali',
+        `${currentUser.name} yolculuk eşleşmesini iptal etti.`,
+        postId,
+        'Post'
+      );
+      
+      // Notification for the person canceling
+      await createNotification(
+        userId,
+        'system',
+        'Yolculuk İptal Edildi',
+        `${post.sourceAddress} - ${post.destinationUniversity} yolculuk eşleşmesini iptal ettiniz.`,
+        postId,
+        'Post'
+      );
+    }
+
+    res.json({ message: 'Match cancelled successfully' });
+  } catch (error) {
+    console.error('Error cancelling match:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

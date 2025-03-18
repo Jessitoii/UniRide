@@ -2,8 +2,10 @@ export const calculateDistance = (pointA: any, pointB: any) => {
     // Logic to calculate distance
 };
 
-export const formatDate = (date: Date) => {
-    // Logic to format date
+export const formatDate = (date: Date | null) => {
+    if (!date) return null;
+    // Example formatting logic
+    return new Date(date); // Ensure it returns a Date object
 };
 
 export const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 5000) => {

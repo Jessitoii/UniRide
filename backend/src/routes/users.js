@@ -5,6 +5,7 @@ const auth = require('../middleware/auth'); // Import the auth middleware
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { createNotification } = require('../services/notificationService');
 const prisma = new PrismaClient();
 
 // Configure multer for file uploads
@@ -40,7 +41,12 @@ router.get('/profile', auth, async (req, res) => {
             post: true,
           },
         }, // Include interestedIn relation
-        matchedPosts: true, // Include matchedPosts relation
+        matchedPosts: {
+          include: {
+            user: true,
+            matchedUser: true,
+          },
+        }, // Include matchedPosts relation
         reviewMade: true, // Include reviewMade relation
         reviewReceived: true, // Include reviewReceived relation
         messagesSent: true, // Include messagesSent relation
@@ -89,9 +95,52 @@ router.put('/profile', auth, upload.single('profilePhoto'), async (req, res) => 
       },
     });
 
+    // Create a notification for profile update
+    await createNotification(
+      userId,
+      'system',
+      'Profil Güncellendi',
+      'Profil bilgileriniz başarıyla güncellendi.',
+      updatedUser.id,
+      'User'
+    );
+
+    // If the profile photo was updated, create a specific notification
+    if (req.file) {
+      await createNotification(
+        userId,
+        'system',
+        'Profil Fotoğrafı Güncellendi',
+        'Profil fotoğrafınız başarıyla yüklendi.',
+        updatedUser.id,
+        'User'
+      );
+    }
+
     res.json(updatedUser);
   } catch (error) {
     console.error('Update profile error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Add an endpoint to create a welcome notification for new users
+router.post('/welcome-notification', auth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    await createNotification(
+      userId,
+      'system',
+      'KampusTaxi\'ye Hoş Geldiniz',
+      'KampusTaxi\'ye hoş geldiniz! Uygulamayı kullanmaya başlamak için profil bilgilerinizi güncelleyin ve yolculuklara göz atın.',
+      userId,
+      'User'
+    );
+    
+    res.status(200).json({ message: 'Welcome notification created' });
+  } catch (error) {
+    console.error('Welcome notification error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -105,7 +154,8 @@ router.get('/profilePhoto/:id', async (req, res) => {
     const file = files.find(f => f.startsWith(userId));
 
     if (!file) {
-      return res.status(404).json({ message: 'Profile photo not found' });
+      res.sendFile(path.join(uploadPath, 'default.jpg'));
+      return;
     }
 
     res.sendFile(path.join(uploadPath, file));

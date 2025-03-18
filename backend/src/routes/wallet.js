@@ -3,6 +3,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const auth = require('../middleware/auth');
 const Papara = require('papara');
+const { createNotification } = require('../services/notificationService');
 
 const prisma = new PrismaClient();
 
@@ -63,6 +64,16 @@ router.post('/deposit', auth, async (req, res) => {
       },
     });
 
+    // Create a notification for the user
+    await createNotification(
+      userId,
+      'payment',
+      'Para Yükleme Başarılı',
+      `Hesabınıza ${amount}₺ tutarında para yükleme işlemi başarıyla gerçekleştirildi.`,
+      paymentRequest.referenceId,
+      'Transaction'
+    );
+
     res.json(wallet);
   } catch (error) {
     console.error('Error depositing money:', error);
@@ -107,6 +118,16 @@ router.post('/withdraw', auth, async (req, res) => {
         },
       },
     });
+
+    // Create a notification for the user
+    await createNotification(
+      userId,
+      'payment',
+      'Para Çekme İşlemi Başarılı',
+      `Hesabınızdan ${amount}₺ tutarında para çekme işlemi başarıyla gerçekleştirildi.`,
+      transferRequest.referenceId,
+      'Transaction'
+    );
 
     res.json(updatedWallet);
   } catch (error) {

@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
 const auth = require('../middleware/auth');
+const { createNotification } = require('../services/notificationService');
+const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
+
 
 // Create a new review
 router.post('/', auth, async (req, res) => {
@@ -18,7 +20,28 @@ router.post('/', auth, async (req, res) => {
         star,
         comment,
       },
+      include: {
+        user: true,
+      },
     });
+
+    // Notify the reviewed user about the new review
+    const reviewer = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, surname: true }
+    });
+
+    if (reviewer) {
+      // Create notification for the reviewed user
+      await createNotification(
+        reviewedUserId,
+        'system',
+        'Yeni Değerlendirme',
+        `${reviewer.name} ${reviewer.surname} size ${star} yıldız değerlendirme yaptı.`,
+        review.id,
+        'Review'
+      );
+    }
 
     res.status(201).json(review);
   } catch (error) {

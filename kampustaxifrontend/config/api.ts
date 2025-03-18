@@ -1,9 +1,9 @@
+import { BASE_URL } from '../env';
+
 interface ApiResponse<T> {
   data?: T;
   error?: string;
-}
-
-const BASE_URL = 'http://10.0.2.2:5000'; // Adjust the URL as needed
+} // Adjust the URL as needed
 
 const api = {
   async get<T>(endpoint: string): Promise<ApiResponse<T>> {

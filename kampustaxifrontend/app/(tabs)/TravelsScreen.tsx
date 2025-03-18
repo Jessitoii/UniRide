@@ -1,194 +1,612 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  RefreshControl,
+  useColorScheme,
+  Image
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BASE_URL } from '../../env';
-import Post from '../../components/Post';
-import PassedPost from '../../components/PassedPost';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../../types/navigation';
+import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
 
+// Local imports
+import { BASE_URL } from '../../env';
+import { RootStackParamList } from '../../types/navigation';
+import { lightTheme, darkTheme, ThemeType } from '../../styles/theme';
+
+// Types
 type TravelsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'TravelsScreen'>;
 
+interface UserProfile {
+  id: string;
+  name: string;
+  stars: number;
+  matchedPosts: PostData[];
+}
+
+interface PostData {
+  id: string;
+  userId: string;
+  user: {
+    id: string;
+    name: string;
+    stars: number;
+    avatar?: string;
+  };
+  sourceAddress: string;
+  destinationFaculty: string;
+  datetimeStart: string;
+  datetimeEnd: string;
+  price: number;
+  route: string;
+  matchedUserId: string;
+  matchedUser?: {
+    id: string;
+    name: string;
+    stars: number;
+    avatar?: string;
+  };
+}
+
 export default function TravelsScreen() {
-  const [profile, setProfile] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
+  // State
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [matchedPosts, setMatchedPosts] = useState<PostData[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Theme
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  
+  // Navigation
   const navigation = useNavigation<TravelsScreenNavigationProp>();
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        const response = await fetch(`${BASE_URL}/api/users/profile`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setProfile(data);
-        } else {
-          console.error('Error fetching profile:', await response.json());
-        }
-      } catch (error) {
-        console.error('Error fetching profile:', error);
+  // Fetch profile and matched posts
+  const fetchData = useCallback(async () => {
+    try {
+      setError(null);
+      const token = await AsyncStorage.getItem('token');
+      
+      if (!token) {
+        // @ts-ignore - Navigation typing will be fixed in a future update
+        navigation.navigate('Auth', {screen: 'Login'});
+        return;
       }
-    };
+      
+      const response = await fetch(`${BASE_URL}/api/users/profile`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-    fetchProfile();
-  }, []);
+      if (response.status === 403) {
+        await AsyncStorage.removeItem('token');
+        // @ts-ignore - Navigation typing will be fixed in a future update
+        navigation.navigate('Auth', {screen: 'Login'});
+        return;
+      }
 
-  const extractDistrict = (address: string | undefined) => {
-    if (!address) {
-      console.warn('Address is undefined');
-      return '';
+      if (response.ok) {
+        const data = await response.json();
+        setProfile(data);
+        
+        // If matchedPosts exists in data, enhance with matched user info
+        if (data.matchedPosts && data.matchedPosts.length > 0) {
+          const postsWithDetails = await Promise.all(
+            data.matchedPosts.map(async (post: PostData) => {
+              // For driver posts, the matched user is the passenger
+              // For passenger posts, the matched user is the driver
+              if (post.matchedUserId && post.matchedUserId !== data.id) {
+                try {
+                  const userResponse = await fetch(`${BASE_URL}/api/users/${post.matchedUserId}`, {
+                    method: 'GET',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`,
+                    },
+                  });
+                  
+                  if (userResponse.ok) {
+                    const userData = await userResponse.json();
+                    return {
+                      ...post,
+                      matchedUser: {
+                        id: userData.id,
+                        name: userData.name,
+                        stars: userData.stars || 0,
+                        avatar: userData.avatar,
+                      }
+                    };
+                  }
+                } catch (err) {
+                  console.error('Error fetching matched user details:', err);
+                }
+              }
+              return post;
+            })
+          );
+          
+          setMatchedPosts(postsWithDetails || []);
+        } else {
+          setMatchedPosts([]);
+        }
+      } else {
+        const errorData = await response.json();
+        setError(errorData.message || 'Failed to load profile data');
+        console.error('Error fetching profile:', errorData);
+      }
+    } catch (error) {
+      setError('Network error. Please check your connection.');
+      console.error('Error fetching profile:', error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
+  }, [navigation]);
+
+  // Initial data load
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Handle pull-to-refresh
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    fetchData();
+  }, [fetchData]);
+
+  // Extract district from full address
+  const extractDistrict = (address: string | undefined) => {
+    if (!address) return '';
+    
     const parts = address.split(',');
-    return parts.length > 1 ? parts[1].trim() : address;
+    return parts.length > 1 ? parts[0].trim() : address;
   };
 
+  // Navigate to post detail screen
   const navigateToPostDetail = (postId: string) => {
+    // @ts-ignore - Navigation typing will be fixed in a future update
     navigation.navigate('PostDetailScreen', {
       postId,
-      userLocation: null, // Pass the selected location
+      userLocation: null,
     });
   };
 
+  // Navigate to chat screen
+  const navigateToChat = (postId: string, matchedUserId: string) => {
+    if (!profile) return;
+    
+    // @ts-ignore - Navigation typing will be fixed in a future update
+    navigation.navigate('ChatScreen', {
+      roomId: postId,
+      currentUserId: profile.id,
+      recipientId: matchedUserId,
+    });
+  };
 
-  if (!profile) {
-    return <Text>Loading...</Text>;
+  // Navigate to user profile
+  const navigateToUserProfile = (userId: string) => {
+    if (!profile) return;
+    
+    // @ts-ignore - Navigation typing will be fixed in a future update
+    navigation.navigate('UserProfileScreen', {
+      userId,
+    });
+  };
+
+  // Format date for better readability
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Check if it's today or tomorrow
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+      return 'Tomorrow';
+    } else {
+      return date.toLocaleDateString(undefined, { 
+        weekday: 'short', 
+        day: 'numeric', 
+        month: 'short' 
+      });
+    }
+  };
+
+  // Filter posts to show only upcoming travels
+  const upcomingTravels = matchedPosts.filter(
+    (post) => new Date(post.datetimeStart) > new Date()
+  );
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <View style={styles(theme).loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
   }
 
-  const now = new Date();
-  const matchedPosts = profile.matchedPosts || [];
+  // Error state
+  if (error) {
+    return (
+      <View style={styles(theme).errorContainer}>
+        <MaterialIcons name="error-outline" size={64} color={theme.colors.error} />
+        <Text style={styles(theme).errorText}>{error}</Text>
+        <TouchableOpacity 
+          style={styles(theme).retryButton} 
+          onPress={fetchData}
+          activeOpacity={0.7}
+        >
+          <Text style={styles(theme).retryButtonText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>Travels</Text>
+    <ScrollView 
+      style={styles(theme).container}
+      refreshControl={
+        <RefreshControl 
+          refreshing={isRefreshing} 
+          onRefresh={handleRefresh}
+          colors={[theme.colors.primary]} 
+        />
+      }
+    >
+      <View style={styles(theme).header}>
+        <Text style={styles(theme).headerText}>Seyahatlarim</Text>
       </View>
-
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'upcoming' && styles.activeTab]}
-          onPress={() => setActiveTab('upcoming')}
-        >
-          <Text style={styles.tabText}>Upcoming</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'past' && styles.activeTab]}
-          onPress={() => setActiveTab('past')}
-        >
-          <Text style={styles.tabText}>Past</Text>
-        </TouchableOpacity>
-      </View>
-
-      {activeTab === 'upcoming' ? (
-        matchedPosts
-          .filter((post: any) => new Date(post.datetimeStart) > now)
-          .map((post: any) => (
-            <View key={post.id}>
-              <Post
-                id={post.id}
-                userId={post.userId}
-                title={`${extractDistrict(post.sourceAddress)} ➡️ ${extractDistrict(post.destinationFaculty)}`}
-                userName={profile.name}
-                date={new Date(post.datetimeStart).toLocaleDateString()}
-                time={new Date(post.datetimeStart).toLocaleTimeString()}
-                price={post.price}
-                route={post.route}
-                interested={false}
-                userLocation={null}
-                onPress={() => navigateToPostDetail(post.id)}
-              />
-              <TouchableOpacity
-                style={styles.chatButton}
-                onPress={() => {
-                  navigation.navigate('ChatScreen', {
-                    roomId: post.id,
-                    currentUserId: profile.id,
-                    recipientId: post.matchedUserId, // Assuming recipientId is the same as postId for simplicity
-                  });
-                }}
-              >
-                <Text style={styles.chatButtonText}>Chat</Text>
-              </TouchableOpacity>
-            </View>
-          ))
+      
+      {upcomingTravels.length === 0 ? (
+        <View style={styles(theme).emptyContainer}>
+          <MaterialIcons name="directions-car" size={64} color={theme.colors.textLight} />
+          <Text style={styles(theme).emptyText}>
+            Henüz bir seyahatiniz yok.  
+          </Text>
+        </View>
       ) : (
-        matchedPosts
-          .filter((post: any) => new Date(post.datetimeStart) < now)
-          .map((post: any) => (
-            <View key={post.id}>
-              <PassedPost
-                key={post.id}
-                title={`${extractDistrict(post.sourceAddress)} ➡️ ${post.destinationFaculty}`}
-                date={new Date(post.datetimeStart).toLocaleDateString()}
-                time={new Date(post.datetimeStart).toLocaleTimeString()}
-                price={post.price}
-              />
-            </View>
-          ))
+        upcomingTravels.map((post) => (
+          <View key={post.id} style={styles(theme).postContainer}>
+            <TouchableOpacity
+              style={styles(theme).postCard}
+              onPress={() => navigateToPostDetail(post.id)}
+              activeOpacity={0.7}
+            >
+              {/* Trip details */}
+              <View style={styles(theme).tripHeader}>
+                <View style={styles(theme).tripInfo}>
+                  <Text style={styles(theme).tripDate}>
+                    {formatDate(post.datetimeStart)}
+                  </Text>
+                  <Text style={styles(theme).tripTime}>
+                    {new Date(post.datetimeStart).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </View>
+                <View style={styles(theme).priceTag}>
+                  <Text style={styles(theme).priceText}>
+                    {post.price} ₺
+                  </Text>
+                </View>
+              </View>
+
+              {/* Route information */}
+              <View style={styles(theme).routeContainer}>
+                <View style={styles(theme).locationDots}>
+                  <View style={styles(theme).startDot} />
+                  <View style={styles(theme).routeLine} />
+                  <View style={styles(theme).endDot} />
+                </View>
+                <View style={styles(theme).locationInfo}>
+                  <Text style={styles(theme).locationText}>
+                    {extractDistrict(post.sourceAddress)}
+                  </Text>
+                  <Text style={styles(theme).locationText}>
+                    {post.destinationFaculty}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Travel companion info */}
+              {post.matchedUser && (
+                <View style={styles(theme).companionContainer}>
+                  <Text style={styles(theme).travelingWithLabel}>
+                    Seyahat arkadasiniz:
+                  </Text>
+                  <TouchableOpacity
+                    style={styles(theme).companionInfo}
+                    onPress={() => navigateToUserProfile(post.matchedUserId)}
+                    activeOpacity={0.6}
+                  >
+                    <View style={styles(theme).avatarContainer}>
+                      {post.matchedUser.id ? (
+                        <View style={styles(theme).avatarContainer}>
+                          <MaterialIcons name="person" size={24} color={'#ccc'} />
+                        </View>
+                      ) : (
+                        <View style={styles(theme).defaultAvatar}>
+                          <Text style={styles(theme).avatarText}>
+                            {post.matchedUser.name.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles(theme).companionDetails}>
+                      <Text style={styles(theme).companionName}>
+                        {post.matchedUser.name}
+                      </Text>
+                      <View style={styles(theme).starsContainer}>
+                        <FontAwesome name="star" size={12} color={theme.colors.warning} />
+                        <Text style={styles(theme).starsText}>
+                          {post.matchedUser.stars.toFixed(1)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles(theme).viewProfileContainer}>
+                      <Text style={styles(theme).viewProfileText}>Profili Gör</Text>
+                      <MaterialIcons name="chevron-right" size={16} color={theme.colors.primary} />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* Chat button */}
+            <TouchableOpacity
+              style={styles(theme).chatButton}
+              onPress={() => navigateToChat(post.id, post.matchedUserId)}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="chat" size={18} color={theme.colors.white} />
+              <Text style={styles(theme).chatButtonText}>
+                {post.matchedUser ? post.matchedUser.name : 'Seyahat Arkadaşiniz'} ile sohbet et
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ))
       )}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+/**
+ * Component styles using dynamic theme system
+ */
+const styles = (theme: ThemeType) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    marginTop: 24,
+    backgroundColor: theme.colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+    backgroundColor: theme.colors.background,
+  },
+  errorText: {
+    ...theme.textStyles.body,
+    color: theme.colors.error,
+    textAlign: 'center',
+    marginTop: theme.spacing.md,
+  },
+  retryButton: {
+    marginTop: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.md,
+    ...theme.shadows.base,
+  },
+  retryButtonText: {
+    ...theme.textStyles.button,
+    color: theme.colors.white,
   },
   header: {
-    height: 48,
-    backgroundColor: '#fff',
+    paddingTop: theme.spacing['3xl'],
+    paddingBottom: theme.spacing.lg,
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
+    alignItems: 'center',
+    backgroundColor: theme.colors.white,
+    ...theme.shadows.sm,
   },
   headerText: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: '#000',
+    ...theme.textStyles.header2,
+    color: theme.colors.textDark,
   },
-  tabContainer: {
-    flexDirection: 'row',
+  emptyContainer: {
+    flex: 1,
     justifyContent: 'center',
-    marginVertical: 16,
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+    marginTop: theme.spacing.xl,
   },
-  tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    marginHorizontal: 8,
+  emptyText: {
+    ...theme.textStyles.body,
+    color: theme.colors.textLight,
+    textAlign: 'center',
+    marginTop: theme.spacing.md,
   },
-  activeTab: {
-    backgroundColor: '#000',
+  postContainer: {
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.divider,
   },
-  tabText: {
-    color: '#000',
-    fontWeight: '500',
+  postCard: {
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.md,
+    ...theme.shadows.sm,
   },
-  chatButton: {
-    padding: 10,
-    backgroundColor: '#007bff',
-    borderRadius: 5,
-    marginTop: 10,
+  tripHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  tripInfo: {
+    flexDirection: 'column',
+  },
+  tripDate: {
+    ...theme.textStyles.header3,
+    color: theme.colors.primary,
+  },
+  tripTime: {
+    ...theme.textStyles.body,
+    color: theme.colors.textLight,
+  },
+  priceTag: {
+    backgroundColor: theme.colors.success + '20',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.lg,
+  },
+  priceText: {
+    ...theme.textStyles.header3,
+    color: theme.colors.success,
+  },
+  routeContainer: {
+    flexDirection: 'row',
+    marginBottom: theme.spacing.md,
+  },
+  locationDots: {
+    width: 20,
+    alignItems: 'center',
+    marginRight: theme.spacing.md,
+  },
+  startDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: theme.colors.primary,
+  },
+  routeLine: {
+    width: 2,
+    height: 30,
+    backgroundColor: theme.colors.divider,
+    marginVertical: 4,
+  },
+  endDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: theme.colors.secondary,
+  },
+  locationInfo: {
+    flex: 1,
+    justifyContent: 'space-between',
+    height: 60,
+  },
+  locationText: {
+    ...theme.textStyles.body,
+    color: theme.colors.textDark,
+  },
+  companionContainer: {
+    marginTop: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.divider,
+    paddingTop: theme.spacing.md,
+  },
+  travelingWithLabel: {
+    ...theme.textStyles.caption,
+    color: theme.colors.textLight,
+    marginBottom: theme.spacing.xs,
+  },
+  companionInfo: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
+  avatarContainer: {
+    backgroundColor: '#f1f1f1',
+    borderRadius: 80,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.md,
+    padding: 10,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  defaultAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primary + '50',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    ...theme.textStyles.header3,
+    color: theme.colors.primary,
+  },
+  companionDetails: {
+    flex: 1,
+  },
+  companionName: {
+    ...theme.textStyles.header3,
+    color: theme.colors.textDark,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  starsText: {
+    ...theme.textStyles.caption,
+    color: theme.colors.textLight,
+    marginLeft: theme.spacing.xs,
+  },
+  chatButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.secondary,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginTop: theme.spacing.md,
+    ...theme.shadows.sm,
+  },
   chatButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
+    ...theme.textStyles.button,
+    color: theme.colors.white,
+    marginLeft: theme.spacing.xs,
+  },
+  viewProfileContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 'auto',
+  },
+  viewProfileText: {
+    ...theme.textStyles.caption,
+    color: theme.colors.primary,
+    marginRight: theme.spacing.xs,
   },
 }); 

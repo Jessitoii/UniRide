@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../../env';
-
+import { MaterialIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 const Wallet = () => {
   const [depositBalance, setDepositBalance] = useState(0);
   const [earningsBalance, setEarningsBalance] = useState(0);
-
+  const navigation = useNavigation();
   useEffect(() => {
     const fetchWallet = async () => {
       try {
@@ -45,212 +46,203 @@ const Wallet = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
-          <Text style={styles.backButtonText}>Back</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <MaterialIcons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.headerText}>Cüzdan Detayları</Text>
+        <Text style={styles.headerTitle}>Payment</Text>
       </View>
-      <View style={styles.balanceSection}>
-        <View style={styles.balanceHeader}>
-          <Text style={styles.balanceTitle}>Toplam Bakiye</Text>
-          <Text style={styles.balanceDate}>Son Güncellenme Tarihi: XX/XX/XXXX</Text>
-        </View>
-        <View style={styles.balanceDetails}>
-          <View style={styles.balanceBox}>
-            <Text style={styles.balanceLabel}>Yatırılan Bakiye</Text>
-            <Text style={styles.balanceAmount}>${depositBalance}</Text>
+
+      {/* Lyft Cash Card */}
+      <View style={styles.cashCard}>
+        <Text style={styles.cashTitle}>Kampüs Taxi Cüzdanı</Text>
+        <Text style={styles.cashAmount}>${depositBalance.toFixed(2)}</Text>
+        <Text style={styles.cashSubtitle}>Önce planla, daha kolay bütçele</Text>
+        
+        <TouchableOpacity style={styles.addCashButton} onPress={handleDeposit}>
+          <View style={styles.addIconContainer}>
+            <MaterialIcons name="add" size={22} color="#fff" />
           </View>
-          <View style={styles.balanceBox}>
-            <Text style={styles.balanceLabel}>Kazanılmış Bakiye</Text>
-            <Text style={styles.balanceAmount}>${earningsBalance}</Text>
-          </View>
-        </View>
-      </View>
-      <View style={styles.transactionsSection}>
-        <Text style={styles.transactionsTitle}>Geçmiş İşlemler</Text>
-        <View style={styles.transactionItem}>
-          <View style={styles.transactionIcon}>
-            <Text style={styles.transactionEmoji}>💰</Text>
-          </View>
-          <View style={styles.transactionDetails}>
-            <Text style={styles.transactionLabel}>Kazançlar</Text>
-            <Text style={styles.transactionDate}>05/25/2021 - $200</Text>
-          </View>
-        </View>
-        <View style={styles.transactionItem}>
-          <View style={styles.transactionIcon}>
-            <Text style={styles.transactionEmoji}>💸</Text>
-          </View>
-          <View style={styles.transactionDetails}>
-            <Text style={styles.transactionLabel}>Ödeme Alındı</Text>
-            <Text style={styles.transactionDate}>05/20/2021 - $100</Text>
-          </View>
-        </View>
-      </View>
-      <View style={styles.moneyTransactionsSection}>
-        <Text style={styles.moneyTransactionsTitle}>Money Transactions</Text>
-        <TouchableOpacity style={styles.transactionButton} onPress={handleDeposit}>
-          <Text style={styles.transactionButtonText}>Add Funds</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.transactionButton}>
-          <Text style={styles.transactionButtonText}>Manage Payment Methods</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.withdrawButton} onPress={handleWithdraw}>
-          <Text style={styles.withdrawButtonText}>Withdraw Funds</Text>
+          <Text style={styles.addCashText}>Para Yükle</Text>
         </TouchableOpacity>
       </View>
-    </View>
+
+      {/* Payment Methods */}
+      <Text style={styles.sectionTitle}>Ödeme Yöntemleri</Text>
+      
+      <TouchableOpacity style={styles.menuItem}>
+        <View style={styles.cardIconContainer}>
+          <Text style={styles.cardIconText}>VISA</Text>
+        </View>
+        <View style={styles.menuTextContainer}>
+          <Text style={styles.menuItemTitle}>Visa 5771</Text>
+        </View>
+      </TouchableOpacity>
+      
+      <TouchableOpacity style={styles.menuItem}>
+        <View style={styles.menuIconContainer}>
+          <MaterialIcons name="add" size={24} color="#000" />
+        </View>
+        <View style={styles.menuTextContainer}>
+          <Text style={styles.menuItemTitle}>Ödeme Yöntemi Ekle</Text>
+        </View>
+      </TouchableOpacity>
+
+      {/* KampusTaxi Pass */}
+      <Text style={styles.sectionTitle}>KampusTaxi Pass</Text>
+      
+      <TouchableOpacity style={styles.menuItem}>
+        <View style={styles.menuIconContainer}>
+          <MaterialIcons name="add" size={24} color="#000" />
+        </View>
+        <View style={styles.menuTextContainer}>
+          <Text style={styles.menuItemTitle}>KampusTaxi Pass Ekle</Text>
+        </View>
+      </TouchableOpacity>
+
+      {/* Payment History */}
+      <TouchableOpacity style={styles.menuItem}>
+        <View style={styles.menuIconContainer}>
+          <MaterialIcons name="receipt" size={24} color="#000" />
+        </View>
+        <View style={styles.menuTextContainer}>
+          <Text style={styles.menuItemTitle}>Ödeme Geçmişi</Text>
+        </View>
+      </TouchableOpacity>
+
+      {/* Withdraw Button */}
+      <TouchableOpacity style={styles.withdrawButton} onPress={handleWithdraw}>
+        <Text style={styles.withdrawButtonText}>Para Çek</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#fff',
   },
   header: {
-    width: '100%',
-    height: 72,
-    backgroundColor: 'white',
-    shadowColor: 'rgba(0, 0, 0, 0.12)',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
+    paddingTop: 40,
+    paddingBottom: 20,
   },
-  backButton: {
-    marginRight: 16,
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginLeft: 20,
+    color: '#000',
   },
-  backButtonText: {
-    color: 'black',
+  cashCard: {
+    margin: 20,
+    padding: 20,
+    backgroundColor: '#f3f3f8',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  cashTitle: {
     fontSize: 16,
+    color: '#000',
+    marginBottom: 8,
   },
-  headerText: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: 'black',
+  cashAmount: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#000',
+    marginBottom: 5,
   },
-  balanceSection: {
-    width: '100%',
-    paddingHorizontal: 16,
-    marginVertical: 8,
-  },
-  balanceHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  balanceTitle: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: 'black',
-  },
-  balanceDate: {
-    fontSize: 12,
-    color: 'rgba(0, 0, 0, 0.5)',
-  },
-  balanceDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 8,
-  },
-  balanceBox: {
-    width: '45%',
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  balanceLabel: {
+  cashSubtitle: {
     fontSize: 14,
-    color: 'rgba(0, 0, 0, 0.5)',
+    color: '#444',
+    marginBottom: 20,
   },
-  balanceAmount: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: 'black',
-  },
-  transactionsSection: {
-    width: '100%',
-    paddingHorizontal: 16,
-    marginVertical: 8,
-  },
-  transactionsTitle: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: 'black',
-  },
-  transactionItem: {
+  addCashButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 4,
+    marginTop: 10,
   },
-  transactionIcon: {
-    width: 32,
-    height: 32,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 16,
+  addIconContainer: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#4b39ef',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 10,
   },
-  transactionEmoji: {
+  addCashText: {
+    fontSize: 16,
+    color: '#4b39ef',
+    fontWeight: '500',
+  },
+  sectionTitle: {
     fontSize: 20,
+    fontWeight: 'bold',
+    paddingHorizontal: 20,
+    paddingTop: 25,
+    paddingBottom: 10,
   },
-  transactionDetails: {
+  menuItem: {
+    flexDirection: 'row',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f1f4',
+  },
+  menuIconContainer: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    marginRight: 15,
+  },
+  cardIconContainer: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 4,
+  },
+  cardIconText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  menuTextContainer: {
     flex: 1,
-  },
-  transactionLabel: {
-    fontSize: 14,
-    color: 'black',
-  },
-  transactionDate: {
-    fontSize: 12,
-    color: 'rgba(0, 0, 0, 0.5)',
-  },
-  moneyTransactionsSection: {
-    width: '100%',
-    paddingHorizontal: 16,
-    marginVertical: 8,
-  },
-  moneyTransactionsTitle: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: 'black',
-  },
-  transactionButton: {
-    width: '100%',
-    paddingVertical: 12,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'black',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 4,
   },
-  transactionButtonText: {
-    color: 'black',
+  menuItemTitle: {
     fontSize: 16,
+    fontWeight: '500',
+  },
+  menuItemSubtitle: {
+    fontSize: 14,
+    color: '#666',
   },
   withdrawButton: {
-    width: '100%',
-    paddingVertical: 12,
-    backgroundColor: 'black',
-    borderRadius: 8,
-    justifyContent: 'center',
+    marginVertical: 20,
+    marginHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#4b39ef',
+    borderRadius: 10,
     alignItems: 'center',
-    marginVertical: 4,
   },
   withdrawButtonText: {
-    color: 'white',
     fontSize: 16,
+    fontWeight: '500',
+    color: '#fff',
   },
 });
 
