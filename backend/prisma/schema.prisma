@@ -30,6 +30,7 @@ model User {
   car            Car?     @relation("CarUser")
   wallet         Wallet?  @relation("UserWallet")
   walletId       String?  @map("wallet_id")
+  iban           String? // IBAN for driver, nullable
   createdAt      DateTime @default(now())
   @@map("users")
 }
@@ -54,6 +55,7 @@ model Post {
   datetimeStart           DateTime
   datetimeEnd             DateTime
   price                   Float
+  fare                    Float // Payment amount for the ride
   interestedUsers         InterestedUser[] // Relation to UserPost join model
   matchedUserId           String?   @map("matched_user_id") // Foreign key to User, optional
   matchedUser             User?     @relation("MatchedUser", fields: [matchedUserId], references: [id]) // Relation to User

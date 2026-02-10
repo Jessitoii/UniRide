@@ -74,6 +74,8 @@ const SignupScreen = () => {
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [passwordVisible, setPasswordVisible] = useState<boolean>(false);
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState<boolean>(false);
+  const [university, setUniversity] = useState<string>('');
+  const [faculty, setFaculty] = useState<string>('');
 
   // State for dropdown open status
   const [universityOpen, setUniversityOpen] = useState<boolean>(false);
@@ -92,7 +94,7 @@ const SignupScreen = () => {
   };
 
   const validateStep2 = (): boolean => {
-    if (!formData.university || !formData.faculty) {
+    if (!university || !faculty) {
       setError('Lütfen üniversite ve fakülte seçin');
       return false;
     }
@@ -193,6 +195,19 @@ const SignupScreen = () => {
     setError(''); // Clear error when user types
   };
 
+  const handleUniversityChange = (value: string) => {
+    handleInputChange('university', value);
+    setUniversity(value);
+    setFaculty('');
+    setError('');
+  };
+
+  const handleFacultyChange = (value: string) => {
+    handleInputChange('faculty', value);
+    setFaculty(value);
+    setError('');
+  };
+
   // Step 1: Personal Information
   const renderStep1 = () => (
     <>
@@ -283,16 +298,18 @@ const SignupScreen = () => {
         value={formData.university}
         items={universities.map((uni) => ({ label: uni.name, value: uni.name }))}
         setOpen={setUniversityOpen}
+        onOpen={() => setFacultyOpen(false)}
         setValue={(callback) => {
           const newValue = callback(formData.university);
-          handleInputChange('university', newValue);
-          handleInputChange('faculty', ''); // Reset faculty when university changes
+          handleUniversityChange(newValue);
+          handleFacultyChange(''); // Reset faculty when university changes
+          setError('');
         }}
         style={styles(theme).dropdown}
         textStyle={styles(theme).dropdownText}
         dropDownContainerStyle={styles(theme).dropdownContainer}
         placeholderStyle={styles(theme).dropdownPlaceholder}
-        placeholder="Üniversitenizi seçin"
+        placeholder={university ? university : "Önce üniversite seçin"}
         zIndex={3000}
         zIndexInverse={1000}
       />
@@ -304,28 +321,40 @@ const SignupScreen = () => {
         open={facultyOpen}
         value={formData.faculty}
         items={
-          universities.find((uni) => uni.name === formData.university)?.faculties.map((faculty) => ({
+          universities.find((uni) => uni.name === university)?.faculties.map((faculty) => ({
             label: faculty.name,
             value: faculty.name,
           })) || []
         }
-        setOpen={setFacultyOpen}
-        setValue={(callback) => handleInputChange('faculty', callback(formData.faculty))}
-        disabled={!formData.university}
+        setOpen={(open) => {
+          setFacultyOpen(open);
+          setUniversityOpen(false); // Only one dropdown open at a time
+        }}
+        onOpen={() => setUniversityOpen(false)}
+        setValue={(callback) => {
+          const newValue = callback(formData.faculty);
+          handleFacultyChange(newValue);
+          setError('');
+        }}
+        disabled={!university}
         disabledStyle={styles(theme).disabledDropdown}
         style={styles(theme).dropdown}
         textStyle={styles(theme).dropdownText}
         dropDownContainerStyle={styles(theme).dropdownContainer}
         placeholderStyle={styles(theme).dropdownPlaceholder}
-        placeholder={formData.university ? "Fakültenizi seçin" : "Önce üniversite seçin"}
-        zIndex={1000}
-        zIndexInverse={3000}
+        placeholder={university ? (faculty ? faculty : "Fakülte seçin") : "Önce üniversite seçin"}
+        zIndex={1}
       />
       
       <View style={styles(theme).buttonContainer}>
         <Button
           mode="outlined"
-          onPress={handleBack}
+          onPress={() => {
+            setError('');
+            setUniversityOpen(false);
+            setFacultyOpen(false);
+            handleBack();
+          }}
           style={[styles(theme).button, styles(theme).buttonOutline]}
           textColor={theme.colors.primary}
         >
@@ -338,6 +367,7 @@ const SignupScreen = () => {
           style={[styles(theme).button, styles(theme).buttonPrimary]}
           buttonColor={theme.colors.primary}
           textColor={theme.colors.white}
+          disabled={!(university && faculty)}
         >
           Devam Et
         </Button>

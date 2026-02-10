@@ -84,6 +84,8 @@ export default function PassengerScreen() {
         navigation.navigate('Auth', {screen: 'Login'});
         return;
       }
+
+      console.log(token);
       
       const res = await fetch(`${BASE_URL}/api/users/profile`, {
         method: 'GET',

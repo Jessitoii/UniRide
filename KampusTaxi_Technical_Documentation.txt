@@ -1,0 +1,432 @@
+# KampüsTaksi Technical Documentation
+
+## 1. System Architecture Overview
+
+### 1.1 Application Architecture
+
+KampüsTaksi is built using a React Native and Expo framework with a client-server architecture. The application follows a component-based design pattern with navigation handled by React Navigation.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    KampüsTaksi App                      │
+├─────────────┬─────────────┬──────────────┬─────────────┤
+│ Auth Module │ Main Module │ Chat Module  │ Profile     │
+│             │             │              │ Module      │
+├─────────────┼─────────────┼──────────────┼─────────────┤
+│ - Login     │ - Passenger │ - Messaging  │ - User      │
+│ - Signup    │ - Driver    │ - Socket     │   Profile   │
+│ - Email     │ - Posts     │   Connection │ - Settings  │
+│   Validation│ - Location  │              │ - Edit      │
+│             │   Search    │              │   Profile   │
+└─────────────┴─────────────┴──────────────┴─────────────┘
+```
+
+### 1.2 Navigation Structure
+
+The application uses a combination of Drawer and Bottom Tab navigation patterns:
+
+- **Drawer Navigator**: Primary navigation container providing access to profile, settings, wallet, notifications, etc.
+- **Bottom Tab Navigator**: Secondary navigation for core app features (Rides, Share, Travel History)
+- **Stack Navigation**: Used for detail screens and multi-step processes
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Drawer Navigator                      │
+├─────────────────────────────────────────────────────────┤
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │               Bottom Tab Navigator                   │ │
+│ │ ┌───────────┐  ┌───────────┐  ┌───────────────────┐ │ │
+│ │ │ Yolculuklar│  │ Paylaş    │  │ Seyehatlerim      │ │ │
+│ │ └───────────┘  └───────────┘  └───────────────────┘ │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                         │
+│ ┌─────────────┐ ┌───────────┐ ┌──────────────────────┐ │
+│ │ Profile     │ │ Settings  │ │ Notifications        │ │
+│ └─────────────┘ └───────────┘ └──────────────────────┘ │
+│                                                         │
+│ ┌─────────────┐ ┌───────────┐ ┌──────────────────────┐ │
+│ │ Wallet      │ │ Chat      │ │ TravelHistory        │ │
+│ └─────────────┘ └───────────┘ └──────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 1.3 Component Architecture
+
+The application follows a functional component architecture with React Hooks for state management:
+
+```
+┌───────────────────────┐
+│ Functional Component  │
+├───────────────────────┤
+│ - useState            │
+│ - useEffect           │
+│ - useRef              │
+│ - useRoute            │
+│ - useNavigation       │
+│ - Custom Hooks        │
+└───┬───────────────────┘
+    │
+    ▼
+┌───────────────────────┐
+│ Rendering             │
+├───────────────────────┤
+│ - JSX Structure       │
+│ - Conditional Display │
+│ - List Rendering      │
+└───┬───────────────────┘
+    │
+    ▼
+┌───────────────────────┐
+│ Styling               │
+├───────────────────────┤
+│ - StyleSheet          │
+│ - Theme Support       │
+│ - Light/Dark Mode     │
+└───────────────────────┘
+```
+
+## 2. Data Models and Database Design
+
+### 2.1 Core Data Models
+
+Based on the code analysis, we've identified these primary data models:
+
+#### User Profile
+
+```typescript
+interface UserProfile {
+  id: string;
+  name: string;
+  profilePhoto?: string;
+  isOnline?: boolean;
+  lastSeen?: string;
+  email?: string;
+  phone?: string;
+  universityId?: string;
+  facultyId?: string;
+}
+```
+
+#### Message
+
+```typescript
+interface Message {
+  id?: string;
+  text: string;
+  sender: string;
+  timestamp: string;
+  profilePhoto?: string;
+  roomId: string;
+  receiverId: string;
+}
+```
+
+#### Post (Ride Sharing)
+
+```typescript
+interface Post {
+  id: string;
+  userId: string;
+  userName: string;
+  userProfilePhoto?: string;
+  startLocation: string;
+  destination: string;
+  departureTime: string;
+  availableSeats: number;
+  price: number;
+  description?: string;
+  carInfo?: {
+    model: string;
+    color: string;
+    licensePlate: string;
+  };
+  createdAt: string;
+}
+```
+
+### 2.2 Data Flow and Storage
+
+The application uses a combination of:
+
+1. **Remote API Storage**: Main data storage through REST API endpoints
+2. **AsyncStorage**: Local storage for authentication tokens and user preferences
+3. **Context API**: For state management of notifications and theme
+
+## 3. API Integrations
+
+### 3.1 Backend API Integration
+
+The application communicates with a custom backend service through REST API endpoints:
+
+```
+BASE_URL: Configured in /env.js
+```
+
+#### Authentication Endpoints:
+- `POST /api/users/login` - User authentication
+- `POST /api/users/signup` - User registration
+- `POST /api/users/validate-email` - Email validation
+
+#### User Profile Endpoints:
+- `GET /api/users/profile` - Get current user profile
+- `GET /api/users/{id}` - Get user by ID
+- `GET /api/users/profilePhoto/{id}` - Get user profile photo
+- `PUT /api/users/profile` - Update user profile
+
+#### Chat Endpoints:
+- `GET /api/chat/messages/{roomId}` - Get chat messages for a room
+- `POST /api/chat/messages` - Send a new message
+
+### 3.2 Real-time Communication
+
+The application uses Socket.IO for real-time messaging features:
+
+```typescript
+// Socket connection setup
+const socket = io(BASE_URL, {
+  transports: ['websocket'],
+  query: {
+    userId: currentUserId
+  }
+});
+
+// Socket events
+socket.emit('joinRoom', { roomId });
+socket.on('receiveMessage', handleNewMessage);
+socket.emit('sendMessage', { roomId, message: newMessage });
+```
+
+## 4. UI/UX Implementation
+
+### 4.1 Theme System
+
+The application implements a comprehensive theming system supporting both light and dark modes:
+
+```typescript
+// Theme detection
+const colorScheme = useColorScheme();
+const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+
+// Theme structure
+interface ThemeType {
+  colors: {
+    primary: string;
+    secondary: string;
+    background: string;
+    card: string;
+    text: string;
+    textDark: string;
+    textLight: string;
+    border: string;
+    divider: string;
+    error: string;
+    surface: string;
+    white: string;
+  };
+  spacing: {
+    xs: number;
+    sm: number;
+    md: number;
+    lg: number;
+    xl: number;
+  };
+  textStyles: {
+    header1: object;
+    header2: object;
+    header3: object;
+    body: object;
+    bodySmall: object;
+  };
+  borderRadius: {
+    sm: number;
+    md: number;
+    lg: number;
+    full: number;
+  };
+  shadows: {
+    sm: object;
+    md: object;
+    lg: object;
+    base: object;
+  };
+}
+```
+
+### 4.2 Component Patterns
+
+#### Dynamic Styling Based on Theme
+```typescript
+// Dynamic styling with theme
+const styles = (theme: ThemeType) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  text: {
+    ...theme.textStyles.body,
+    color: theme.colors.textDark,
+  }
+});
+```
+
+#### Responsive Message Bubbles (Chat Screen)
+```jsx
+<View style={[
+  styles(theme).messageBubble, 
+  isCurrentUser ? styles(theme).myMessage : styles(theme).otherMessage
+]}>
+  <Text style={[
+    styles(theme).messageText,
+    isCurrentUser ? styles(theme).myMessageText : styles(theme).otherMessageText
+  ]}>
+    {item.text}
+  </Text>
+  <Text style={[
+    styles(theme).timestamp,
+    isCurrentUser ? styles(theme).myTimestamp : styles(theme).otherTimestamp
+  ]}>
+    {formatMessageTime(item.timestamp)}
+  </Text>
+</View>
+```
+
+## 5. Authentication and Security
+
+### 5.1 Authentication Flow
+
+The application implements a token-based authentication system:
+
+1. User logs in via `/auth/login`
+2. Token is stored in AsyncStorage
+3. Token is attached to API requests via Authorization header
+4. Session validation on app startup
+
+```typescript
+// Authentication check on app startup
+const checkAuth = async () => {
+  const token = await AsyncStorage.getItem('token');
+  if (token) {
+    setIsAuthenticated(true);        
+  } else {
+    setIsAuthenticated(false);
+    navigation.navigate('Auth', {screen: 'Login'});
+  }
+};
+```
+
+### 5.2 Protected Routes
+
+Navigation to protected screens is guarded by authentication state checks, directing unauthenticated users to the login screen.
+
+## 6. Performance Optimization Techniques
+
+### 6.1 UI Optimization
+
+- **FlatList** with `keyExtractor` and optimal rendering for message lists
+- **Image** loading with placeholders
+- **ActivityIndicator** for loading states
+- **useRef** for maintaining scroll position in lists
+
+```typescript
+// Efficient list rendering
+<FlatList
+  ref={flatListRef}
+  data={messages}
+  renderItem={renderMessage}
+  keyExtractor={(item, index) => item.id || `msg-${index}`}
+  contentContainerStyle={styles(theme).messageList}
+  showsVerticalScrollIndicator={false}
+  onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+/>
+```
+
+### 6.2 Network Optimization
+
+- Optimistic UI updates with proper error handling
+- Error states for network failures
+- Caching strategies for frequently accessed data
+
+## 7. Error Handling and Logging
+
+### 7.1 Error Handling Patterns
+
+The application implements consistent error handling throughout:
+
+```typescript
+try {
+  // API call or other operation
+} catch (error) {
+  console.error('Error description:', error);
+  setError('User-friendly error message');
+  // Optional: Additional error handling like fallback UI, retry logic
+} finally {
+  // Clean up operations (e.g., setting loading state to false)
+}
+```
+
+### 7.2 User-Facing Error States
+
+- Toast notifications for transient errors
+- Inline error messages for form validation
+- Fallback UI components for content loading failures
+
+```jsx
+{error && (
+  <View style={styles(theme).errorContainer}>
+    <Text style={styles(theme).errorText}>{error}</Text>
+    <TouchableOpacity onPress={() => setError(null)}>
+      <MaterialIcons name="close" size={24} color={theme.colors.error} />
+    </TouchableOpacity>
+  </View>
+)}
+```
+
+## 8. Internationalization and Localization
+
+The application currently has Turkish language text hardcoded in the UI. Future improvements should implement a proper i18n system to support multiple languages and dynamic text content.
+
+## 9. Testing and Quality Assurance
+
+### Recommended Testing Strategy
+
+1. **Unit Tests**: For utility functions and business logic
+2. **Component Tests**: For individual UI components
+3. **Integration Tests**: For component interactions
+4. **End-to-End Tests**: For critical user flows
+
+## 10. Deployment and CI/CD
+
+### 10.1 Build Process
+
+1. **Development**: Expo development server with hot reloading
+2. **Testing**: Internal builds distributed via Expo or TestFlight/Firebase App Distribution
+3. **Production**: App store builds via EAS Build or custom build process
+
+### 10.2 Environment Configuration
+
+Environment variables are managed through the `/env.js` file, which contains configuration for:
+- API base URL
+- Socket connection details
+- Other environment-specific settings
+
+## 11. Future Enhancements and Roadmap
+
+Based on the analysis of the current codebase, these areas could be improved:
+
+1. **State Management**: Implement more centralized state management with Redux or Context API
+2. **Code Splitting**: Optimize bundle size through better code organization
+3. **Offline Support**: Implement better offline capabilities and data synchronization
+4. **Accessibility**: Enhance support for screen readers and other accessibility features
+5. **Internationalization**: Implement proper i18n support for multiple languages
+6. **Test Coverage**: Add comprehensive test suite for all components and functionality
+
+## 12. Technical Debt and Known Issues
+
+- Socket type definition should be properly imported instead of using custom interface
+- Profile photo loading needs error handling for missing images
+- Some components need better TypeScript typing instead of using `any`
+- Form validation could be more consistent across different screens
+
+---
+
+This documentation provides a comprehensive overview of the KampüsTaksi application architecture and implementation details based on the available code. As the application evolves, this documentation should be updated to reflect new features, architectural changes, and best practices. 

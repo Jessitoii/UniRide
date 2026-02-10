@@ -63,22 +63,13 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
           const data = await response.json();
           setProfile(data);
           setProfilePhoto(`${BASE_URL}/api/users/profilePhoto/${data.id}`);
-          return true;
         }
       } catch (error) {
         console.error('Profile fetch error:', error);
         router.push('/auth/login');
-        return false;
       }
     };
-
-    const fetchProfileInterval = setInterval(() => {
-      if(!fetchProfile()){
-        clearInterval(fetchProfileInterval);
-      }
-    }, 1000);
-
-    return () => clearInterval(fetchProfileInterval);
+    fetchProfile();
   }, []);
 
   const handleProfilePhotoChange = async () => {
@@ -199,6 +190,7 @@ function DrawerNavigator() {
 } 
 
 function BottomTabNavigator() {
+  const segments = useSegments()
   const route = useRoute();
   const params = route.params as { posts: any[] | null };
   const { unreadCount } = useNotifications();
@@ -327,6 +319,14 @@ export default function RootLayout() {
           <Drawer.Screen
             name="ChatScreen"
             component={ChatScreen}
+            options={{
+              headerShown: false,
+              drawerItemStyle: {display: 'none'},
+            }}
+          />
+          <Drawer.Screen
+            name="LiveTrackingScreen"
+            component={require('./(tabs)/LiveTrackingScreen').default}
             options={{
               headerShown: false,
               drawerItemStyle: {display: 'none'},

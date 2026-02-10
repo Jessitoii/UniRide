@@ -1,3 +1,5 @@
+import type { PostData } from '../app/(tabs)/TravelsScreen';
+
 export type RootStackParamList = {
   Signup: undefined;
   ValidateEmail: undefined;
@@ -16,5 +18,6 @@ export type RootStackParamList = {
   Drawer: undefined;
   Settings: undefined;
   Home: undefined;
+  LiveTrackingScreen: { post: PostData };
   // Add other screen types here
 }; 

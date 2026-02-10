@@ -18,6 +18,7 @@ interface InterestedUserProps {
   route: any;
   userLocation: { latitude: number; longitude: number } | null;
   stars: number;
+  matched: boolean;
 }
 
 const InterestedUser: React.FC<InterestedUserProps> = ({
@@ -29,6 +30,7 @@ const InterestedUser: React.FC<InterestedUserProps> = ({
   route,
   userLocation,
   stars,
+  matched,
 }) => {
   if (!userLocation) {
     console.error('User location is not defined for user:', userId);
@@ -119,13 +121,15 @@ const InterestedUser: React.FC<InterestedUserProps> = ({
           </View>
           
           {/* Match Button */}
-          <TouchableOpacity 
-            style={styles.matchButton} 
-            onPress={() => handleMatch(userId)}
+          {!matched && (
+            <TouchableOpacity 
+              style={styles.matchButton} 
+              onPress={() => handleMatch(userId)}
             activeOpacity={0.8}
           >
-            <Text style={styles.matchButtonText}>Eşleş</Text>
-          </TouchableOpacity>
+              <Text style={styles.matchButtonText}>Eşleş</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </TouchableOpacity>

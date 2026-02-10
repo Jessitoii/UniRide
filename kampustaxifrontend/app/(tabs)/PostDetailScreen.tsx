@@ -47,6 +47,7 @@ interface PostData {
       stars: number;
     };
   }>;
+  matchedUserId?: string;
 }
 
 interface ProfileData {
@@ -81,10 +82,6 @@ export default function PostDetailScreen() {
   // Get color scheme for theming
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-  
-  // Constants for date formatting
-  const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-  const dayNames = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 
   // Process route data when post changes
   useEffect(() => {
@@ -138,11 +135,12 @@ export default function PostDetailScreen() {
           return;
         }
         const data = await response.json();
-        setPost(data);
+        setPost(data);        
       } catch (error) {
         console.error('Error fetching post details:', error);
       }
     };
+
 
     const fetchProfile = async () => {
       try {
@@ -238,7 +236,7 @@ export default function PostDetailScreen() {
 
   const isOwner = post.userId === profile.id;
   const postDate = new Date(post.datetimeStart);
-  const formattedDate = `${postDate.getDate()} ${monthNames[postDate.getMonth()]} ${dayNames[postDate.getDay()]}`;
+  const formattedDate = postDate.toLocaleDateString("tr-TR", { day: '2-digit', month: 'long', weekday: 'long' });
 
   // Render components
   const renderMap = () => (
@@ -298,7 +296,7 @@ export default function PostDetailScreen() {
     <View style={styles(theme).interestedContainer}>
       <Text style={styles(theme).interestedTitle}>İlgilenenler</Text>
       {post.interestedUsers?.length ? (
-        post.interestedUsers.map((interestedUser) => (
+        post.interestedUsers.map((interestedUser: any) => (
           <InterestedUser
             key={interestedUser.id}
             postId={post.id}
@@ -309,6 +307,7 @@ export default function PostDetailScreen() {
             university={interestedUser.user.university}
             bio={interestedUser.user.bio}
             stars={interestedUser.user.stars}
+            matched={post.matchedUserId ? true : false}
           />
         ))
       ) : (
@@ -405,15 +404,28 @@ export default function PostDetailScreen() {
       
       {/* Reservation request button (if not owner) */}
       {!isOwner && (
-        <TouchableOpacity 
-          style={styles(theme).interestedButton} 
-          onPress={handleInterested}
-          activeOpacity={0.7}
-        >
-          <MaterialIcons name="calendar-month" size={24} color={theme.colors.white} style={styles(theme).buttonIcon}/>
-          <Text style={styles(theme).interestedButtonText}>Rezarvasyon Talebi Gönder</Text>
-        </TouchableOpacity>
-      )}
+        !post.matchedUserId ? (
+          post.interestedUsers?.some((user: any) => user.user.id === profile.id) ? (
+            <View style={styles(theme).interestedButton}>
+              <MaterialIcons name="check-circle" size={24} color={theme.colors.white} style={styles(theme).buttonIcon}/>
+              <Text style={styles(theme).interestedButtonText}>Rezarvasyon Talebi Gönderildi</Text>
+            </View>
+          ) : (
+            <TouchableOpacity 
+              style={styles(theme).interestedButton} 
+            onPress={handleInterested}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="calendar-month" size={24} color={theme.colors.white} style={styles(theme).buttonIcon}/>
+            <Text style={styles(theme).interestedButtonText}>Rezarvasyon Talebi Gönder</Text>
+          </TouchableOpacity>
+        )
+      ) : (
+        <View style={styles(theme).interestedButton}>
+          <MaterialIcons name="check-circle" size={24} color={theme.colors.white} style={styles(theme).buttonIcon}/>
+          <Text style={styles(theme).interestedButtonText}>Post Eşleşti</Text>
+        </View>
+      ))}
     </ScrollView>
   );
 }

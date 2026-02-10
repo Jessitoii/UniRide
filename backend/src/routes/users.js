@@ -165,6 +165,84 @@ router.get('/profilePhoto/:id', async (req, res) => {
   }
 });
 
+// GET /api/users/travel-data
+router.get('/travel-data', auth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const now = new Date();
+
+    // Get current user's basic profile
+    const profile = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        surname: true,
+        email: true,
+        stars: true,
+        university: true,
+        faculty: true,
+        iban: true,
+      },
+    });
+
+    // Get posts where current user is matchedUser and date is in the future
+    const matchedPosts = await prisma.post.findMany({
+      where: {
+        matchedUserId: userId,
+        datetimeStart: { gt: now },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            stars: true,
+            iban: true,
+          },
+        },
+        matchedUser: {
+          select: {
+            id: true,
+            name: true,
+            stars: true,
+            iban: true,
+          },
+        },
+      },
+    });
+
+    // Get current user's own future posts
+    const myActivePosts = await prisma.post.findMany({
+      where: {
+        userId: userId,
+        datetimeStart: { gt: now },
+      },
+      include: {
+        matchedUser: {
+          select: {
+            id: true,
+            name: true,
+            stars: true,
+            iban: true,
+          },
+        },
+      },
+    });
+
+    res.json({
+      profile,
+      matchedPosts,
+      myActivePosts,
+    });
+    console.log(matchedPosts);
+    console.log(myActivePosts);
+  } catch (error) {
+    console.error('Error in /api/users/travel-data:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Get user profile by ID
 router.get('/:id', async (req, res) => {
   try {

@@ -221,6 +221,7 @@ export default function DriverScreen() {
                   route={JSON.parse(JSON.parse(interestedIn.post.route))}
                   userLocation={JSON.parse(interestedIn.locationCoordinates)}
                   stars={interestedIn.user.stars}
+                  matched={interestedIn.matched}
                 />
               ))
           ) : (

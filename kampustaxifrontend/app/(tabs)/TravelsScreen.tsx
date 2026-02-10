@@ -10,12 +10,15 @@ import {
   ActivityIndicator, 
   RefreshControl,
   useColorScheme,
-  Image
+  Image,
+  Modal,
+  Alert
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 
 // Local imports
 import { BASE_URL } from '../../env';
@@ -32,6 +35,7 @@ interface UserProfile {
   matchedPosts: PostData[];
 }
 
+export type { PostData };
 interface PostData {
   id: string;
   userId: string;
@@ -40,6 +44,7 @@ interface PostData {
     name: string;
     stars: number;
     avatar?: string;
+    iban?: string; // Added iban to user interface
   };
   sourceAddress: string;
   destinationFaculty: string;
@@ -60,9 +65,13 @@ export default function TravelsScreen() {
   // State
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [matchedPosts, setMatchedPosts] = useState<PostData[]>([]);
+  const [myActivePosts, setMyActivePosts] = useState<PostData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [selectedPaymentPost, setSelectedPaymentPost] = useState<PostData | null>(null);
+  const [isMarkingPaid, setIsMarkingPaid] = useState(false);
   
   // Theme
   const colorScheme = useColorScheme();
@@ -76,80 +85,36 @@ export default function TravelsScreen() {
     try {
       setError(null);
       const token = await AsyncStorage.getItem('token');
-      
       if (!token) {
         // @ts-ignore - Navigation typing will be fixed in a future update
         navigation.navigate('Auth', {screen: 'Login'});
         return;
       }
-      
-      const response = await fetch(`${BASE_URL}/api/users/profile`, {
+      const response = await fetch(`${BASE_URL}/api/users/travel-data`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
       });
-
       if (response.status === 403) {
         await AsyncStorage.removeItem('token');
         // @ts-ignore - Navigation typing will be fixed in a future update
         navigation.navigate('Auth', {screen: 'Login'});
         return;
       }
-
       if (response.ok) {
         const data = await response.json();
-        setProfile(data);
-        
-        // If matchedPosts exists in data, enhance with matched user info
-        if (data.matchedPosts && data.matchedPosts.length > 0) {
-          const postsWithDetails = await Promise.all(
-            data.matchedPosts.map(async (post: PostData) => {
-              // For driver posts, the matched user is the passenger
-              // For passenger posts, the matched user is the driver
-              if (post.matchedUserId && post.matchedUserId !== data.id) {
-                try {
-                  const userResponse = await fetch(`${BASE_URL}/api/users/${post.matchedUserId}`, {
-                    method: 'GET',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${token}`,
-                    },
-                  });
-                  
-                  if (userResponse.ok) {
-                    const userData = await userResponse.json();
-                    return {
-                      ...post,
-                      matchedUser: {
-                        id: userData.id,
-                        name: userData.name,
-                        stars: userData.stars || 0,
-                        avatar: userData.avatar,
-                      }
-                    };
-                  }
-                } catch (err) {
-                  console.error('Error fetching matched user details:', err);
-                }
-              }
-              return post;
-            })
-          );
-          
-          setMatchedPosts(postsWithDetails || []);
-        } else {
-          setMatchedPosts([]);
-        }
+        setProfile(data.profile);
+        setMatchedPosts(data.matchedPosts || []);
+        setMyActivePosts(data.myActivePosts || []);
       } else {
         const errorData = await response.json();
-        setError(errorData.message || 'Failed to load profile data');
-        console.error('Error fetching profile:', errorData);
+        setError(errorData.message || 'Failed to load travel data');
+        console.error('Error fetching travel data:', errorData);
       }
     } catch (error) {
       setError('Network error. Please check your connection.');
-      console.error('Error fetching profile:', error);
+      console.error('Error fetching travel data:', error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -201,9 +166,7 @@ export default function TravelsScreen() {
     if (!profile) return;
     
     // @ts-ignore - Navigation typing will be fixed in a future update
-    navigation.navigate('UserProfileScreen', {
-      userId,
-    });
+    navigation.navigate('UserProfileScreen', { id: userId });
   };
 
   // Format date for better readability
@@ -231,6 +194,61 @@ export default function TravelsScreen() {
   const upcomingTravels = matchedPosts.filter(
     (post) => new Date(post.datetimeStart) > new Date()
   );
+
+  // Utility: check if a ride is active
+  const isRideActive = (start: string, end: string) => {
+    const now = new Date();
+    return new Date(start) <= now && now <= new Date(end);
+  };
+
+  // Payment modal open/close
+  const openPaymentModal = (post: PostData) => {
+    setSelectedPaymentPost(post);
+    setPaymentModalVisible(true);
+  };
+  const closePaymentModal = () => {
+    setPaymentModalVisible(false);
+    setSelectedPaymentPost(null);
+  };
+
+  // Copy IBAN to clipboard
+  const handleCopyIban = async (iban: string) => {
+    await Clipboard.setStringAsync(iban);
+    Alert.alert('Kopyalandı', 'IBAN panoya kopyalandı.');
+  };
+
+  // Mark as paid logic
+  const handleMarkAsPaid = async (post: PostData) => {
+    if (!profile || !post.matchedUser) return;
+    setIsMarkingPaid(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(`${BASE_URL}/api/wallet/mark-paid`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          postId: post.id,
+          driverId: profile.id,
+          passengerId: post.matchedUser.id,
+          amount: post.price,
+        }),
+      });
+      if (response.ok) {
+        Alert.alert('Başarılı', 'Ödeme başarıyla işaretlendi.');
+        closePaymentModal();
+        fetchData();
+      } else {
+        Alert.alert('Hata', 'Ödeme işaretlenemedi.');
+      }
+    } catch (error) {
+      Alert.alert('Hata', 'Bir hata oluştu.');
+    } finally {
+      setIsMarkingPaid(false);
+    }
+  };
 
   // Loading state
   if (isLoading) {
@@ -273,7 +291,7 @@ export default function TravelsScreen() {
         <Text style={styles(theme).headerText}>Seyahatlarim</Text>
       </View>
       
-      {upcomingTravels.length === 0 ? (
+      {myActivePosts.length === 0 && matchedPosts.length === 0 ? (
         <View style={styles(theme).emptyContainer}>
           <MaterialIcons name="directions-car" size={64} color={theme.colors.textLight} />
           <Text style={styles(theme).emptyText}>
@@ -281,108 +299,286 @@ export default function TravelsScreen() {
           </Text>
         </View>
       ) : (
-        upcomingTravels.map((post) => (
-          <View key={post.id} style={styles(theme).postContainer}>
-            <TouchableOpacity
-              style={styles(theme).postCard}
-              onPress={() => navigateToPostDetail(post.id)}
-              activeOpacity={0.7}
-            >
-              {/* Trip details */}
-              <View style={styles(theme).tripHeader}>
-                <View style={styles(theme).tripInfo}>
-                  <Text style={styles(theme).tripDate}>
-                    {formatDate(post.datetimeStart)}
-                  </Text>
-                  <Text style={styles(theme).tripTime}>
-                    {new Date(post.datetimeStart).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
-                <View style={styles(theme).priceTag}>
-                  <Text style={styles(theme).priceText}>
-                    {post.price} ₺
-                  </Text>
-                </View>
-              </View>
-
-              {/* Route information */}
-              <View style={styles(theme).routeContainer}>
-                <View style={styles(theme).locationDots}>
-                  <View style={styles(theme).startDot} />
-                  <View style={styles(theme).routeLine} />
-                  <View style={styles(theme).endDot} />
-                </View>
-                <View style={styles(theme).locationInfo}>
-                  <Text style={styles(theme).locationText}>
-                    {extractDistrict(post.sourceAddress)}
-                  </Text>
-                  <Text style={styles(theme).locationText}>
-                    {post.destinationFaculty}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Travel companion info */}
-              {post.matchedUser && (
-                <View style={styles(theme).companionContainer}>
-                  <Text style={styles(theme).travelingWithLabel}>
-                    Seyahat arkadasiniz:
-                  </Text>
-                  <TouchableOpacity
-                    style={styles(theme).companionInfo}
-                    onPress={() => navigateToUserProfile(post.matchedUserId)}
-                    activeOpacity={0.6}
-                  >
-                    <View style={styles(theme).avatarContainer}>
-                      {post.matchedUser.id ? (
-                        <View style={styles(theme).avatarContainer}>
-                          <MaterialIcons name="person" size={24} color={'#ccc'} />
-                        </View>
-                      ) : (
-                        <View style={styles(theme).defaultAvatar}>
-                          <Text style={styles(theme).avatarText}>
-                            {post.matchedUser.name.charAt(0).toUpperCase()}
-                          </Text>
+        <>
+          {myActivePosts.map((post) => {
+            const isDriver = profile && post.userId === profile.id;
+            const hasMatchedUser = !!post.matchedUser;
+            return (
+              <View key={post.id} style={styles(theme).postContainer}>
+                <TouchableOpacity
+                  style={styles(theme).postCard}
+                  onPress={() => isRideActive(post.datetimeStart, post.datetimeEnd) ? navigation.navigate('LiveTrackingScreen', { post }) : navigateToPostDetail(post.id)}
+                  activeOpacity={0.7}
+                >
+                  {/* Trip details */}
+                  <View style={styles(theme).tripHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      {isRideActive(post.datetimeStart, post.datetimeEnd) && (
+                        <View style={styles(theme).activeDotContainer}>
+                          <View style={styles(theme).activeDot} />
                         </View>
                       )}
-                    </View>
-                    <View style={styles(theme).companionDetails}>
-                      <Text style={styles(theme).companionName}>
-                        {post.matchedUser.name}
-                      </Text>
-                      <View style={styles(theme).starsContainer}>
-                        <FontAwesome name="star" size={12} color={theme.colors.warning} />
-                        <Text style={styles(theme).starsText}>
-                          {post.matchedUser.stars.toFixed(1)}
+                      <View style={styles(theme).tripInfo}>
+                        <Text style={styles(theme).tripDate}>
+                          {formatDate(post.datetimeStart)}
+                        </Text>
+                        <Text style={styles(theme).tripTime}>
+                          {new Date(post.datetimeStart).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </Text>
                       </View>
                     </View>
-                    <View style={styles(theme).viewProfileContainer}>
-                      <Text style={styles(theme).viewProfileText}>Profili Gör</Text>
-                      <MaterialIcons name="chevron-right" size={16} color={theme.colors.primary} />
+                    <View style={styles(theme).priceTag}>
+                      <Text style={styles(theme).priceText}>
+                        {post.price} ₺
+                      </Text>
                     </View>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </TouchableOpacity>
+                  </View>
 
-            {/* Chat button */}
-            <TouchableOpacity
-              style={styles(theme).chatButton}
-              onPress={() => navigateToChat(post.id, post.matchedUserId)}
-              activeOpacity={0.7}
-            >
-              <MaterialIcons name="chat" size={18} color={theme.colors.white} />
-              <Text style={styles(theme).chatButtonText}>
-                {post.matchedUser ? post.matchedUser.name : 'Seyahat Arkadaşiniz'} ile sohbet et
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ))
+                  {/* Route information */}
+                  <View style={styles(theme).routeContainer}>
+                    <View style={styles(theme).locationDots}>
+                      <View style={styles(theme).startDot} />
+                      <View style={styles(theme).routeLine} />
+                      <View style={styles(theme).endDot} />
+                    </View>
+                    <View style={styles(theme).locationInfo}>
+                      <Text style={styles(theme).locationText}>
+                        {extractDistrict(post.sourceAddress)}
+                      </Text>
+                      <Text style={styles(theme).locationText}>
+                        {post.destinationFaculty}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Travel companion info */}
+                  {post.matchedUser && (
+                    <View style={styles(theme).companionContainer}>
+                      <Text style={styles(theme).travelingWithLabel}>
+                        Seyahat arkadasiniz:
+                      </Text>
+                      <TouchableOpacity
+                        style={styles(theme).companionInfo}
+                        onPress={() => navigateToUserProfile(post.matchedUserId)}
+                        activeOpacity={0.6}
+                      >
+                        <View style={styles(theme).avatarContainer}>
+                          {post.matchedUser.id ? (
+                            <View style={styles(theme).avatarContainer}>
+                              <MaterialIcons name="person" size={24} color={'#ccc'} />
+                            </View>
+                          ) : (
+                            <View style={styles(theme).defaultAvatar}>
+                              <Text style={styles(theme).avatarText}>
+                                {post.matchedUser.name.charAt(0).toUpperCase()}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles(theme).companionDetails}>
+                          <Text style={styles(theme).companionName}>
+                            {post.matchedUser.name}
+                          </Text>
+                          <View style={styles(theme).starsContainer}>
+                            <FontAwesome name="star" size={12} color={theme.colors.warning} />
+                            <Text style={styles(theme).starsText}>
+                              {post.matchedUser.stars.toFixed(1)}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles(theme).viewProfileContainer}>
+                          <Text style={styles(theme).viewProfileText}>Profili Gör</Text>
+                          <MaterialIcons name="chevron-right" size={16} color={theme.colors.primary} />
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                {/* Chat button */}
+                <TouchableOpacity
+                  style={styles(theme).chatButton}
+                  onPress={() => navigateToChat(post.id, post.matchedUserId)}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons name="chat" size={18} color={theme.colors.white} />
+                  <Text style={styles(theme).chatButtonText}>
+                    {(post.matchedUser && post.matchedUser.id != profile?.id) ? post.matchedUser.name : (post.matchedUser && post.matchedUser.id == profile?.id) ? post.user.name : 'Seyahat Arkadaşiniz'} ile sohbet et
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Payment button for driver */}
+                {isDriver && hasMatchedUser && (
+                  <TouchableOpacity
+                    style={styles(theme).chatButton}
+                    onPress={() => openPaymentModal(post)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="check-circle" size={18} color={theme.colors.white} />
+                    <Text style={styles(theme).chatButtonText}>Ödemeyi İşaretle</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
+          {matchedPosts.map((post) => {
+            const isPassenger = profile && post.matchedUserId === profile.id;
+            const driverIban = post.user?.iban;
+            return (
+              <View key={post.id} style={styles(theme).postContainer}>
+                <TouchableOpacity
+                  style={styles(theme).postCard}
+                  onPress={() => navigateToPostDetail(post.id)}
+                  activeOpacity={0.7}
+                >
+                  {/* Trip details */}
+                  <View style={styles(theme).tripHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      {isRideActive(post.datetimeStart, post.datetimeEnd) && (
+                        <View style={styles(theme).activeDotContainer}>
+                          <View style={styles(theme).activeDot} />
+                        </View>
+                      )}
+                      <View style={styles(theme).tripInfo}>
+                        <Text style={styles(theme).tripDate}>
+                          {formatDate(post.datetimeStart)}
+                        </Text>
+                        <Text style={styles(theme).tripTime}>
+                          {new Date(post.datetimeStart).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles(theme).priceTag}>
+                      <Text style={styles(theme).priceText}>
+                        {post.price} ₺
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Route information */}
+                  <View style={styles(theme).routeContainer}>
+                    <View style={styles(theme).locationDots}>
+                      <View style={styles(theme).startDot} />
+                      <View style={styles(theme).routeLine} />
+                      <View style={styles(theme).endDot} />
+                    </View>
+                    <View style={styles(theme).locationInfo}>
+                      <Text style={styles(theme).locationText}>
+                        {extractDistrict(post.sourceAddress)}
+                      </Text>
+                      <Text style={styles(theme).locationText}>
+                        {post.destinationFaculty}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Travel companion info */}
+                  {post.matchedUser && (
+                    <View style={styles(theme).companionContainer}>
+                      <Text style={styles(theme).travelingWithLabel}>
+                        Seyahat arkadasiniz:
+                      </Text>
+                      <TouchableOpacity
+                        style={styles(theme).companionInfo}
+                        onPress={() => navigateToUserProfile(post.matchedUserId)}
+                        activeOpacity={0.6}
+                      >
+                        <View style={styles(theme).avatarContainer}>
+                          {post.matchedUser.id ? (
+                            <View style={styles(theme).avatarContainer}>
+                              <MaterialIcons name="person" size={24} color={'#ccc'} />
+                            </View>
+                          ) : (
+                            <View style={styles(theme).defaultAvatar}>
+                              <Text style={styles(theme).avatarText}>
+                                {post.matchedUser.name.charAt(0).toUpperCase()}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles(theme).companionDetails}>
+                          <Text style={styles(theme).companionName}>
+                            {post.matchedUser.name}
+                          </Text>
+                          <View style={styles(theme).starsContainer}>
+                            <FontAwesome name="star" size={12} color={theme.colors.warning} />
+                            <Text style={styles(theme).starsText}>
+                              {post.matchedUser.stars.toFixed(1)}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles(theme).viewProfileContainer}>
+                          <Text style={styles(theme).viewProfileText}>Profili Gör</Text>
+                          <MaterialIcons name="chevron-right" size={16} color={theme.colors.primary} />
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                {/* Payment button for passenger */}
+                {isPassenger && driverIban && (
+                  <TouchableOpacity
+                    style={styles(theme).chatButton}
+                    onPress={() => openPaymentModal(post)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="payment" size={18} color={theme.colors.white} />
+                    <Text style={styles(theme).chatButtonText}>Ödeme Yap</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
+        </>
       )}
+      {/* Payment Modal */}
+      <Modal
+        visible={paymentModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={closePaymentModal}
+      >
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 24, width: '80%', alignItems: 'center' }}>
+            {selectedPaymentPost && profile && (
+              <>
+                {/* Passenger view: show IBAN */}
+                {selectedPaymentPost.user?.iban && selectedPaymentPost.matchedUserId === profile.id && (
+                  <>
+                    <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 8 }}>Sürücü IBAN'ı</Text>
+                    <Text selectable style={{ fontSize: 16, marginBottom: 12 }}>{selectedPaymentPost.user.iban}</Text>
+                    <TouchableOpacity onPress={() => handleCopyIban(selectedPaymentPost.user.iban!)} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                      <MaterialIcons name="content-copy" size={20} color={theme.colors.primary} />
+                      <Text style={{ color: theme.colors.primary, marginLeft: 6 }}>Kopyala</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+                {/* Driver view: mark as paid */}
+                {selectedPaymentPost.matchedUser && selectedPaymentPost.userId === profile.id && (
+                  <>
+                    <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 8 }}>Ödemeyi Onayla</Text>
+                    <Text style={{ fontSize: 16, marginBottom: 12 }}>Yolcu: {selectedPaymentPost.matchedUser.name}</Text>
+                    <Text style={{ fontSize: 16, marginBottom: 12 }}>Tutar: {selectedPaymentPost.price} ₺</Text>
+                    <TouchableOpacity onPress={() => handleMarkAsPaid(selectedPaymentPost)} style={{ backgroundColor: theme.colors.success, borderRadius: 8, padding: 12, minWidth: 120, alignItems: 'center' }} disabled={isMarkingPaid}>
+                      <Text style={{ color: 'white', fontWeight: 'bold' }}>{isMarkingPaid ? 'İşleniyor...' : 'Ödemeyi İşaretle'}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+                <TouchableOpacity onPress={closePaymentModal} style={{ marginTop: 20 }}>
+                  <Text style={{ color: theme.colors.primary, fontWeight: 'bold' }}>Kapat</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -608,5 +804,16 @@ const styles = (theme: ThemeType) => StyleSheet.create({
     ...theme.textStyles.caption,
     color: theme.colors.primary,
     marginRight: theme.spacing.xs,
+  },
+  activeDotContainer: {
+    marginRight: 8,
+  },
+  activeDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'limegreen',
+    opacity: 0.7,
+    // Blinking animation will be added inline
   },
 }); 
