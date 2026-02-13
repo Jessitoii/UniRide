@@ -8,7 +8,7 @@ import {
   TextStyle,
   useColorScheme,
 } from 'react-native';
-import { lightTheme, darkTheme, ThemeType } from '../../styles/theme';
+import { lightTheme, darkTheme, ThemeType } from '../../src/styles/theme';
 
 export type BadgeVariant = 'filled' | 'outlined' | 'subtle';
 export type BadgeSize = 'small' | 'medium' | 'large';
@@ -166,7 +166,7 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
   rightIcon: {
     marginLeft: theme.spacing.xs,
   },
-  
+
   // Size styles
   smallBadge: {
     paddingVertical: 2,
@@ -180,7 +180,7 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: theme.spacing.md,
   },
-  
+
   // Text size styles
   smallText: {
     fontSize: 10,
@@ -191,7 +191,7 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
   largeText: {
     fontSize: 14,
   },
-  
+
   // Dot badge styles
   dotBadge: {
     borderRadius: 999,

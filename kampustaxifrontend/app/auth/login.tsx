@@ -1,19 +1,19 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  View, 
-  Image, 
-  TouchableOpacity, 
-  ScrollView, 
-  KeyboardAvoidingView, 
-  Platform, 
+import {
+  StyleSheet,
+  View,
+  Image,
+  TouchableOpacity,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   StatusBar,
   useColorScheme
 } from 'react-native';
 import { TextInput, Button, Text } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { StackNavigationProp } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -39,8 +39,8 @@ export default function LoginScreen() {
   // Theme and navigation setup
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-  const navigation = useNavigation<NavigationProp>();
-  
+  const router = useRouter();
+
   // State management
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
@@ -57,8 +57,9 @@ export default function LoginScreen() {
         const token = await AsyncStorage.getItem('token');
         if (token) {
           // If authenticated, redirect to profile
-          // @ts-ignore - Navigation typing will be fixed in a future update
-          navigation.navigate("Home", {screen: 'Yolculuklar'});
+          // Navigate to Home (bubbles to Drawer)
+          // @ts-ignore
+          router.replace('/(drawer)/(tabs)/PassengerScreen');
         }
       } catch (error) {
         console.error('Authentication check failed:', error);
@@ -97,10 +98,11 @@ export default function LoginScreen() {
       } else if (response.data?.token) {
         // Store token
         await AsyncStorage.setItem('token', response.data.token);
-        
+
         // Navigate to main app
-        // @ts-ignore - Navigation typing will be fixed in a future update
-        navigation.navigate("Home", {screen: 'Yolculuklar'});
+        // Navigate to Home
+        // @ts-ignore
+        router.replace('/(drawer)/(tabs)/PassengerScreen');
       }
     } catch (error) {
       console.error('Login failed:', error);
@@ -111,28 +113,28 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={{ flex: 1 }}
     >
       <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles(theme).container}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles(theme).logoContainer}>
-          <Image 
-            source={require('../../assets/images/logo.png')} 
-            style={styles(theme).logo} 
+          <Image
+            source={require('../../assets/images/logo.png')}
+            style={styles(theme).logo}
             resizeMode="contain"
           />
-          <Text style={styles(theme).appName}>KampusTaxi</Text>
+          <Text style={styles(theme).appName}>KampüsRoute</Text>
           <Text style={styles(theme).tagline}>Güvenli ve ekonomik kampüs ulaşımı</Text>
         </View>
 
         <View style={styles(theme).formContainer}>
           <Text style={styles(theme).title}>Giriş Yap</Text>
-          
+
           <View style={styles(theme).inputContainer}>
             <MaterialIcons name="email" size={20} color={theme.colors.primary} style={styles(theme).inputIcon} />
             <TextInput
@@ -149,7 +151,7 @@ export default function LoginScreen() {
               theme={{ colors: { text: theme.colors.textDark, background: theme.colors.card } }}
             />
           </View>
-          
+
           <View style={styles(theme).inputContainer}>
             <MaterialIcons name="lock" size={20} color={theme.colors.primary} style={styles(theme).inputIcon} />
             <TextInput
@@ -164,8 +166,8 @@ export default function LoginScreen() {
               contentStyle={{ color: theme.colors.textDark }}
               theme={{ colors: { text: theme.colors.textDark, background: theme.colors.card } }}
               right={
-                <TextInput.Icon 
-                  icon={passwordVisible ? "eye-off" : "eye"} 
+                <TextInput.Icon
+                  icon={passwordVisible ? "eye-off" : "eye"}
                   onPress={() => setPasswordVisible(!passwordVisible)}
                   color={theme.colors.textLight}
                 />
@@ -174,7 +176,7 @@ export default function LoginScreen() {
           </View>
 
           {error ? <Text style={styles(theme).errorText}>{error}</Text> : null}
-          
+
           <Button
             mode="contained"
             onPress={handleLogin}
@@ -186,9 +188,11 @@ export default function LoginScreen() {
           >
             Giriş Yap
           </Button>
-          
+
           <TouchableOpacity
-            onPress={() => navigation.navigate('Signup')}
+            onPress={() => {
+              router.push('/auth/signup');
+            }}
             style={styles(theme).linkButton}
           >
             <Text style={styles(theme).linkText}>
@@ -196,10 +200,10 @@ export default function LoginScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-        
+
         <View style={styles(theme).footer}>
           <Text style={styles(theme).footerText}>
-            © 2025 KampusTaxi - Tüm hakları saklıdır
+            © 2025 KampüsRoute - Tüm hakları saklıdır
           </Text>
         </View>
       </ScrollView>

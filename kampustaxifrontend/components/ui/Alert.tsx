@@ -10,7 +10,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { lightTheme, darkTheme, ThemeType } from '../../styles/theme';
+import { lightTheme, darkTheme, ThemeType } from '../../src/styles/theme';
 
 export type AlertType = 'info' | 'success' | 'warning' | 'error';
 
@@ -94,10 +94,10 @@ export const Alert: React.FC<AlertProps> = ({
       <View style={styles.contentContainer}>
         {title && <Text style={[styles.title, { color: alertConfig.color }]}>{title}</Text>}
         <Text style={styles.message}>{message}</Text>
-        
+
         {action && (
-          <TouchableOpacity 
-            style={[styles.actionButton, { borderColor: alertConfig.color }]} 
+          <TouchableOpacity
+            style={[styles.actionButton, { borderColor: alertConfig.color }]}
             onPress={action.onPress}
             activeOpacity={0.7}
           >
@@ -134,14 +134,14 @@ export const ToastAlert: React.FC<ToastAlertProps> = ({
     const timer = setTimeout(() => {
       if (onClose) onClose();
     }, timeout);
-    
+
     return () => clearTimeout(timer);
   }, [timeout, onClose]);
 
   return (
     <View style={styles.toastContainer}>
-      <Alert 
-        {...props} 
+      <Alert
+        {...props}
         dismissable={!!onClose}
         onDismiss={onClose}
         style={styles.toast}

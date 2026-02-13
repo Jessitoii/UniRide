@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "kampustaxifrontend",
-    "slug": "kampustaxifrontend",
+    "name": "KampüsRoute",
+    "slug": "kampus-route",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -15,7 +15,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.alper.kampusroute"
     },
     "web": {
       "bundler": "metro",
@@ -31,6 +32,14 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.24"
+          }
         }
       ]
     ],

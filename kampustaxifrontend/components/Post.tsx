@@ -5,10 +5,9 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, useColorSc
 import MapView, { Polyline, Marker, Circle } from 'react-native-maps';
 import { useRouter } from 'expo-router';
 import { BASE_URL } from '../env';
-import { lightTheme, darkTheme, ThemeType } from '../styles/theme';
+import { lightTheme, darkTheme, ThemeType } from '../src/styles/theme';
 import { mapStyle } from '@/styles/mapStyle';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { MaterialIcons, Ionicons, FontAwesome5 } from '@expo/vector-icons';
 
 interface PostProps {
   id: string;
@@ -18,7 +17,7 @@ interface PostProps {
   date: string;
   startTime: string;
   endTime: string;
-  price: number;
+
   route: any;
   userId: string;
   stars: number;
@@ -26,15 +25,15 @@ interface PostProps {
   onPress: () => void;
 }
 
-const Post: React.FC<PostProps> = ({ id, from, to, userName, date, startTime, endTime, price, route, userId, userLocation, onPress, stars }) => {
+const Post: React.FC<PostProps> = ({ id, from, to, userName, date, startTime, endTime, route, userId, userLocation, onPress, stars }) => {
   const [profilePhoto, setProfilePhoto] = useState<string>('');
   const [initialRegion, setInitialRegion] = useState<any>(null);
   const [latitudeDelta, setLatitudeDelta] = useState<number>(0);
   const [longitudeDelta, setLongitudeDelta] = useState<number>(0);
-  const navigation = useNavigation();
+  const router = useRouter();
   // Get the device color scheme
   const colorScheme = useColorScheme();
-  
+
   // Use the appropriate theme based on color scheme
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
 
@@ -81,127 +80,79 @@ const Post: React.FC<PostProps> = ({ id, from, to, userName, date, startTime, en
 
   const handleProfilePress = () => {
     // @ts-ignore
-    navigation.navigate('UserProfileScreen', { id: userId });
+    router.push({ pathname: '/(drawer)/UserProfileScreen', params: { id: userId } });
   };
 
   const getTimeDisplay = () => {
     try {
       const startTimeParts = startTime.split(':');
       const endTimeParts = endTime.split(':');
-      return `${startTimeParts[0]}:${startTimeParts[1]} ${endTimeParts[0]}:${endTimeParts[1]}`;
+      return `${startTimeParts[0]}:${startTimeParts[1]} - ${endTimeParts[0]}:${endTimeParts[1]}`;
     } catch (e) {
       return `${startTime} - ${endTime}`;
     }
   };
 
+  const getDayDisplay = () => {
+    // Assuming date is in a format like "12 Feb 2026" or similar
+    return date;
+  };
+
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles(theme).touchableContainer}>
       <View style={styles(theme).postContainer}>
-        <View style={styles(theme).cardContent}>
-          <View style={styles(theme).routeSection}>
-            <View style={styles(theme).timeColumn}>
-              <Text style={styles(theme).timeText}>{getTimeDisplay()}</Text>
-              <Text style={styles(theme).dateText}>{date}</Text>
+        {/* Header: Driver Info & Price */}
+        <View style={styles(theme).headerSection}>
+          <TouchableOpacity style={styles(theme).userInfo} onPress={handleProfilePress}>
+            <View style={styles(theme).avatarContainer}>
+              {profilePhoto && !profilePhoto.includes('icons8') ? (
+                <Image source={{ uri: profilePhoto }} style={styles(theme).avatarImage} />
+              ) : (
+                <MaterialIcons name="person" size={24} color={theme.colors.textLight} />
+              )}
             </View>
-            
-            <View style={styles(theme).routeColumn}>
-              <View style={styles(theme).routeMarker}>
-                <View style={styles(theme).pinkdot} />
-                <View style={styles(theme).routeLine} />
-                <View style={styles(theme).bluedot} />
-              </View>
-              
-              <View style={styles(theme).locationNames}>
-                <Text style={styles(theme).locationText}>{from}</Text>
-                <Text style={styles(theme).locationText}>{to}</Text>
+            <View style={styles(theme).nameContainer}>
+              <Text style={styles(theme).nameText}>{userName}</Text>
+              <View style={styles(theme).ratingContainer}>
+                <Ionicons name="star" size={12} color={theme.colors.warning} />
+                <Text style={styles(theme).ratingText}>{stars.toFixed(1)}</Text>
               </View>
             </View>
-            
-            <View style={styles(theme).priceColumn}>
-              <Text style={styles(theme).currencySymbol}>₺</Text>
-              <Text style={styles(theme).priceText}>{price}</Text>
+          </TouchableOpacity>
+
+
+        </View>
+
+        <View style={styles(theme).divider} />
+
+        {/* Route Section with Vertical Timeline */}
+        <View style={styles(theme).routeSection}>
+          <View style={styles(theme).timelineColumn}>
+            <Text style={styles(theme).timeText}>{startTime.substring(0, 5)}</Text>
+            <View style={styles(theme).timelineConnector}>
+              <View style={styles(theme).timelineDotStart} />
+              <View style={styles(theme).timelineLine} />
+              <View style={styles(theme).timelineDotEnd} />
             </View>
+            <Text style={styles(theme).timeText}>{endTime.substring(0, 5)}</Text>
           </View>
-          
-          <View style={styles(theme).divider} />
-          
-          <View style={styles(theme).profileSection}>
-            <View style={styles(theme).carInfo}>
-              <MaterialIcons name="directions-car" size={24} color={theme.colors.primary} />
-            </View>
-            
-            <TouchableOpacity style={styles(theme).userInfo} onPress={handleProfilePress}>
-              <View style={styles(theme).avatarContainer}>
-                <MaterialIcons name="person" size={24} color={'#ccc'} />
-              </View>
-              <View style={styles(theme).nameRating}>
-                <Text style={styles(theme).nameText}>{userName}</Text>
-                <View style={styles(theme).ratingContainer}>
-                  {
-                    Array.from({ length: Math.floor(stars) }, (_, index) => (
-                      <MaterialIcons key={index} name="star" size={16} color={theme.colors.secondary} />
-                    ))
-                  }
-                  <Text style={styles(theme).ratingText}>{stars.toFixed(1)}</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-            
-            <View style={styles(theme).passengers}>
-              <MaterialIcons name="person" size={24} color={theme.colors.primary} />
-            </View>
+
+          <View style={styles(theme).locationColumn}>
+            <Text style={styles(theme).locationText} numberOfLines={1}>{from}</Text>
+            <View style={styles(theme).spacer} />
+            <Text style={styles(theme).locationText} numberOfLines={1}>{to}</Text>
           </View>
         </View>
-        
-        <View style={styles(theme).hiddenMap}>
-          <MapView
-            style={styles(theme).map}
-            initialRegion={initialRegion}
-            scrollEnabled={false}
-            zoomEnabled={false}
-            rotateEnabled={false}
-            pitchEnabled={false}
-            customMapStyle={mapStyle}
-          >
-            <Polyline
-              key={0}
-              coordinates={JSON.parse(JSON.parse(route))}
-              strokeWidth={8}
-              style={{zIndex: 0}}
-            />
-            <Polyline
-              key={1}
-              coordinates={JSON.parse(JSON.parse(route))}
-              strokeWidth={4}
-              strokeColor={theme.colors.secondary}
-              style={{zIndex: 1}}
-            />
-            <Circle
-              center={JSON.parse(JSON.parse(route))[0]}
-              radius={latitudeDelta * 5000}
-              strokeColor={theme.colors.secondary}
-              strokeWidth={2}
-              fillColor={theme.colors.background}
-              style={{zIndex: 2}}
-              lineDashPattern={[10, 10]}
-            />
-            <Circle
-              center={JSON.parse(JSON.parse(route))[JSON.parse(JSON.parse(route)).length - 1]}
-              radius={latitudeDelta * 5000}
-              strokeColor={theme.colors.secondary}
-              strokeWidth={2}
-              fillColor={theme.colors.background}
-              style={{zIndex: 2}}
-              lineDashPattern={[10, 10]}
-            />
-            {userLocation && (
-              <Marker
-                coordinate={userLocation}
-                title="Your Location"
-                description="This is your selected location"
-              />
-            )}
-          </MapView>
+
+        {/* Footer: Date & Car */}
+        <View style={styles(theme).footerSection}>
+          <View style={styles(theme).dateContainer}>
+            <Ionicons name="calendar-outline" size={14} color={theme.colors.textLight} />
+            <Text style={styles(theme).dateText}>{date}</Text>
+          </View>
+          <View style={styles(theme).carContainer}>
+            <FontAwesome5 name="car" size={12} color={theme.colors.textLight} />
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -209,179 +160,157 @@ const Post: React.FC<PostProps> = ({ id, from, to, userName, date, startTime, en
 };
 
 const styles = (theme: ThemeType) => StyleSheet.create({
+  touchableContainer: {
+    marginVertical: theme.spacing.sm,
+    marginHorizontal: theme.spacing.md,
+    ...theme.shadows.sm,
+  },
   postContainer: {
-    width: 300,
-    marginHorizontal: '2.5%',
-    marginVertical: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.lg,
-    overflow: 'hidden',
     backgroundColor: theme.colors.card,
-    ...theme.shadows.base,
-  },
-  cardContent: {
+    borderRadius: theme.borderRadius.lg, // 20px
     padding: theme.spacing.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'transparent', // Cleaner look, rely on shadow
   },
-  routeSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  timeColumn: {
-    alignItems: 'flex-start',
-    width: '25%',
-  },
-  timeText: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: theme.colors.textDark,
-  },
-  dateText: {
-    fontSize: 14,
-    color: theme.colors.textLight,
-    marginTop: theme.spacing.xs,
-  },
-  routeColumn: {
-    flexDirection: 'row',
-    width: '50%',
-    paddingHorizontal: theme.spacing.sm,
-  },
-  routeMarker: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    marginRight: theme.spacing.sm,
-  },
-  pinkdot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: theme.colors.secondary,
-    marginVertical: 3,
-  },
-  bluedot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: theme.colors.primary,
-    marginVertical: 3,
-  },
-  routeLine: {
-    width: 2,
-    height: 40,
-    backgroundColor: theme.colors.textDark,
-  },
-  locationNames: {
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-    height: 60,
-  },
-  locationText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: theme.colors.textDark,
-  },
-  priceColumn: {
-    alignItems: 'flex-end',
-    width: '25%',
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  currencySymbol: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.textDark,
-    marginTop: 2,
-  },
-  priceText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: theme.colors.textDark,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: theme.colors.divider,
-    marginVertical: theme.spacing.md,
-  },
-  profileSection: {
+  headerSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  carInfo: {
-    width: '20%',
-    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
   },
   userInfo: {
     flexDirection: 'row',
-    width: '60%',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: theme.spacing.sm,
-    borderWidth: 2,
-    borderColor: theme.colors.border,
   },
   avatarContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: theme.spacing.sm,
-    borderWidth: 2,
-    borderColor: theme.colors.border,
-    backgroundColor: '#f1f1f1',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: theme.spacing.sm,
+    overflow: 'hidden',
   },
-  nameRating: {
-    flexDirection: 'column',
+  avatarImage: {
+    width: 40,
+    height: 40,
+  },
+  nameContainer: {
+    justifyContent: 'center',
   },
   nameText: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: theme.colors.textDark,
+    fontSize: theme.typography.fontSize.base,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text,
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: theme.spacing.xs,
   },
   ratingText: {
-    fontSize: 16,
+    fontSize: theme.typography.fontSize.xs,
     color: theme.colors.textLight,
-    marginLeft: theme.spacing.xs,
+    marginLeft: 2,
+    marginTop: 1,
   },
-  passengers: {
-    width: '20%',
-    alignItems: 'center',
+  priceContainer: {
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.md,
+  },
+  priceText: {
+    fontSize: theme.typography.fontSize.lg,
+    color: theme.colors.primary,
+    fontFamily: theme.typography.fontFamily.bold,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.divider,
+    marginVertical: theme.spacing.xs,
+  },
+  routeSection: {
     flexDirection: 'row',
+    marginTop: theme.spacing.sm,
+    height: 70, // Fixed height for timeline
+  },
+  timelineColumn: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: 40,
+    marginRight: theme.spacing.xs,
+    paddingVertical: 4,
+  },
+  timeText: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  timelineConnector: {
+    flex: 1,
+    alignItems: 'center',
+    // marginVertical: 2,
     justifyContent: 'center',
+    width: 20,
   },
-  hiddenMap: {
-    height: 0,
-    overflow: 'hidden',
+  timelineDotStart: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: theme.colors.text,
+    borderWidth: 2,
+    borderColor: theme.colors.card,
   },
-  map: {
-    width: '100%',
-    height: 250,
-  },
-  interestedButton: {
-    position: 'absolute',
-    bottom: theme.spacing.sm,
-    right: theme.spacing.sm,
+  timelineDotEnd: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.full,
+    borderWidth: 2,
+    borderColor: theme.colors.card,
   },
-  interestedButtonText: {
-    color: theme.colors.white,
-    fontWeight: 'bold',
-    fontSize: 14,
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: theme.colors.border,
+    marginVertical: 2,
+  },
+  locationColumn: {
+    flex: 1,
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  locationText: {
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.textDark,
+    fontFamily: theme.typography.fontFamily.regular,
+  },
+  spacer: {
+    flex: 1,
+  },
+  footerSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: theme.spacing.md,
+    paddingTop: theme.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.divider,
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateText: {
+    marginLeft: 6,
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.textLight,
+  },
+  carContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });
 

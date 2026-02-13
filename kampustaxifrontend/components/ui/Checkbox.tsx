@@ -10,7 +10,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { lightTheme, darkTheme, ThemeType } from '../../styles/theme';
+import { lightTheme, darkTheme, ThemeType } from '../../src/styles/theme';
 
 interface CheckboxProps {
   checked: boolean;

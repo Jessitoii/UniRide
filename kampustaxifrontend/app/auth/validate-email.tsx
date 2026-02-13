@@ -12,12 +12,12 @@ import {
 } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../config/api';
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 const ValidateEmailScreen = () => {
   const [validationCode, setValidationCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigation = useNavigation();
+  const router = useRouter();
 
   const handleSubmit = async () => {
     if (!validationCode) {
@@ -38,8 +38,9 @@ const ValidateEmailScreen = () => {
       // Store token
       await AsyncStorage.setItem('token', response.data.token);
       // Navigate to main screen
+      // Navigate to Home
       // @ts-ignore
-      navigation.navigate('Home');
+      router.replace('/(drawer)/(tabs)/PassengerScreen');
     }
 
     setLoading(false);

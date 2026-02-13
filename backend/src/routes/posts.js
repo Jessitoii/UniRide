@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth'); // Import the auth middleware
-const { PrismaClient } = require('@prisma/client'); 
+const { PrismaClient } = require('@prisma/client');
 const { createNotification } = require('../services/notificationService');
 
 const prisma = new PrismaClient();
@@ -82,7 +82,7 @@ router.get('/nearby', async (req, res) => {
     const userLongitude = parseFloat(longitude);
 
     console.log("Posts:", posts.length);
-    
+
 
     const nearbyPosts = posts
       .map((post) => {
@@ -116,7 +116,7 @@ router.get('/:id', async (req, res) => {
       where: { id },
       include: {
         user: {
-          include:{
+          include: {
             car: true,
           }
         },
@@ -136,7 +136,7 @@ router.get('/:id', async (req, res) => {
 
     res.json(post);
     console.log(post);
-    
+
   } catch (error) {
     console.error('Error fetching post:', error);
     res.status(500).json({ message: 'Server error' });
@@ -146,7 +146,7 @@ router.get('/:id', async (req, res) => {
 // Create a new post
 router.post('/', auth, async (req, res) => {
   try {
-    const { sourceAddress, sourceCoordinates, destinationUniversity, destinationFaculty, route, datetimeStart, datetimeEnd, price } = req.body;
+    const { sourceAddress, sourceCoordinates, destinationUniversity, destinationFaculty, route, datetimeStart, datetimeEnd } = req.body;
     const userId = req.user.userId;
 
     const post = await prisma.post.create({
@@ -159,7 +159,6 @@ router.post('/', auth, async (req, res) => {
         route: JSON.stringify(route),
         datetimeStart: new Date(datetimeStart),
         datetimeEnd: new Date(datetimeEnd),
-        price,
       },
       include: {
         user: true,
@@ -201,7 +200,7 @@ router.get('/', async (req, res) => {
 // Update a post
 router.put('/:postId', auth, async (req, res) => {
   const { postId } = req.params;
-  const { sourceAddress, sourceCoordinates, destinationUniversity, destinationFaculty, route, datetimeStart, datetimeEnd, price } = req.body;
+  const { sourceAddress, sourceCoordinates, destinationUniversity, destinationFaculty, route, datetimeStart, datetimeEnd } = req.body;
 
   try {
     const post = await prisma.post.update({
@@ -214,7 +213,6 @@ router.put('/:postId', auth, async (req, res) => {
         route: JSON.stringify(route),
         datetimeStart: new Date(datetimeStart),
         datetimeEnd: new Date(datetimeEnd),
-        price,
       },
     });
 
@@ -258,6 +256,13 @@ router.post('/:id/interested', auth, async (req, res) => {
 
     if (existingEntry) {
       return res.status(400).json({ message: 'User already interested in this post' });
+    }
+
+    // Check if seats are available (matchedUserId != null)
+    const postCheck = await prisma.post.findUnique({ where: { id: postId } });
+    if (!postCheck) return res.status(404).json({ message: 'Post not found' });
+    if (postCheck.matchedUserId) {
+      return res.status(400).json({ message: 'Ride is full (Seats not available)' });
     }
 
     // Create a new InterestedUser entry
@@ -304,6 +309,12 @@ router.post('/:postId/match', auth, async (req, res) => {
   const driverId = req.user.userId;
 
   try {
+    const postCheck = await prisma.post.findUnique({ where: { id: postId } });
+    if (!postCheck) return res.status(404).json({ message: 'Post not found' });
+    if (postCheck.matchedUserId) {
+      return res.status(400).json({ message: 'Ride is full (Seats not available)' });
+    }
+
     const post = await prisma.post.update({
       where: { id: postId },
       data: { matchedUserId },
@@ -360,7 +371,7 @@ router.post('/:postId/cancel-match', auth, async (req, res) => {
 
     const isDriver = post.userId === userId;
     const matchedUserId = post.matchedUserId;
-    
+
     // Only allow the driver or matched passenger to cancel
     if (!isDriver && matchedUserId !== userId) {
       return res.status(403).json({ message: 'Not authorized to cancel this match' });
@@ -371,7 +382,7 @@ router.post('/:postId/cancel-match', auth, async (req, res) => {
     const otherUser = await prisma.user.findUnique({
       where: { id: otherUserId }
     });
-    
+
     const currentUser = await prisma.user.findUnique({
       where: { id: userId }
     });
@@ -400,7 +411,7 @@ router.post('/:postId/cancel-match', auth, async (req, res) => {
         postId,
         'Post'
       );
-      
+
       // Notification for the person canceling
       await createNotification(
         userId,

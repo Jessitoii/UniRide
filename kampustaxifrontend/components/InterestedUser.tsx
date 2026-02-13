@@ -63,9 +63,9 @@ const InterestedUser: React.FC<InterestedUserProps> = ({
   };
 
   return (
-    <TouchableOpacity 
-      style={styles.card} 
-      onPress={() => router.push(`/(tabs)/PostDetailScreen?postId=${postId}`)}
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => router.push({ pathname: '/(drawer)/PostDetailScreen', params: { postId } })}
       activeOpacity={0.9}
     >
       <View style={styles.container}>
@@ -119,14 +119,14 @@ const InterestedUser: React.FC<InterestedUserProps> = ({
               />
             </MapView>
           </View>
-          
+
           {/* Match Button */}
           {!matched && (
-            <TouchableOpacity 
-              style={styles.matchButton} 
+            <TouchableOpacity
+              style={styles.matchButton}
               onPress={() => handleMatch(userId)}
-            activeOpacity={0.8}
-          >
+              activeOpacity={0.8}
+            >
               <Text style={styles.matchButtonText}>Eşleş</Text>
             </TouchableOpacity>
           )}

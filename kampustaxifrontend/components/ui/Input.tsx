@@ -12,7 +12,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { lightTheme, darkTheme, ThemeType } from '../../styles/theme';
+import { lightTheme, darkTheme, ThemeType } from '../../src/styles/theme';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -77,8 +77,8 @@ export const Input: React.FC<InputProps> = ({
           style={[
             styles.input,
             leftIcon ? styles.inputWithLeftIcon : null,
-            (showClearButton || rightIcon || showToggleButton) 
-              ? styles.inputWithRightIcon 
+            (showClearButton || rightIcon || showToggleButton)
+              ? styles.inputWithRightIcon
               : null,
           ]}
           placeholderTextColor={theme.colors.textLight}
@@ -89,17 +89,17 @@ export const Input: React.FC<InputProps> = ({
 
         <View style={styles.rightIconContainer}>
           {rightIcon && <View style={styles.rightIcon}>{rightIcon}</View>}
-          
+
           {showClearButton && (
             <TouchableOpacity style={styles.clearButton} onPress={onClear} activeOpacity={0.7}>
-              <MaterialIcons 
-                name="cancel" 
-                size={16} 
-                color={theme.colors.textLight} 
+              <MaterialIcons
+                name="cancel"
+                size={16}
+                color={theme.colors.textLight}
               />
             </TouchableOpacity>
           )}
-          
+
           {showToggleButton && (
             <TouchableOpacity
               style={styles.toggleButton}
@@ -132,7 +132,7 @@ export const Input: React.FC<InputProps> = ({
 
 const createStyles = (theme: ThemeType) => StyleSheet.create({
   container: {
-    marginBottom: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
   },
   labelContainer: {
     marginBottom: theme.spacing.xs,
@@ -150,21 +150,23 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: theme.colors.divider,
+    borderColor: theme.colors.border, // Using border color instead of divider
     borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.card,
-    height: 48,
+    backgroundColor: theme.colors.surface, // Using surface color
+    height: 52, // Slightly taller for better touch target
     overflow: 'hidden',
   },
   inputError: {
     borderColor: theme.colors.error,
+    borderWidth: 1.5,
   },
   input: {
     flex: 1,
     height: '100%',
     paddingHorizontal: theme.spacing.md,
-    color: theme.colors.textDark,
-    fontSize: 16,
+    color: theme.colors.text,
+    fontSize: theme.typography.fontSize.base,
+    fontFamily: theme.typography.fontFamily.regular,
   },
   inputWithLeftIcon: {
     paddingLeft: 0,

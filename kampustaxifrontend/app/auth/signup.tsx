@@ -19,8 +19,7 @@ import {
   SegmentedButtons,
   ProgressBar,
 } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
+import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import DropDownPicker from 'react-native-dropdown-picker';
@@ -28,14 +27,7 @@ import { lightTheme, darkTheme, ThemeType } from '../../styles/theme';
 import api from '../../config/api';
 import universities from '../../constants/Universities';
 
-// Define navigation types
-type RootStackParamList = {
-  LoginScreen: undefined;
-  Signup: undefined;
-  ValidateEmail: undefined;
-};
 
-type NavigationProp = StackNavigationProp<RootStackParamList, 'Signup'>;
 
 // Interface for signup form data
 interface SignupFormData {
@@ -54,8 +46,8 @@ const SignupScreen = () => {
   // Theme and navigation setup
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-  const navigation = useNavigation<NavigationProp>();
-  
+  const router = useRouter();
+
   // State management
   const [step, setStep] = useState<number>(1);
   const [formData, setFormData] = useState<SignupFormData>({
@@ -106,32 +98,32 @@ const SignupScreen = () => {
       setError('Lütfen tüm alanları doldurun');
       return false;
     }
-    
+
     if (!formData.email.endsWith('.edu.tr')) {
       setError('Lütfen geçerli bir .edu.tr uzantılı e-posta adresi kullanın');
       return false;
     }
-    
+
     if (formData.password.length < 6) {
       setError('Şifre en az 6 karakter olmalıdır');
       return false;
     }
-    
+
     if (formData.password !== formData.confirmPassword) {
       setError('Şifreler eşleşmiyor');
       return false;
     }
-    
+
     return true;
   };
 
   // Form navigation handlers
   const handleNext = () => {
     setError('');
-    
+
     if (step === 1 && !validateStep1()) return;
     if (step === 2 && !validateStep2()) return;
-    
+
     setStep(step + 1);
   };
 
@@ -158,13 +150,13 @@ const SignupScreen = () => {
         email: formData.email,
         password: formData.password,
       };
-      
+
       const response = await api.post('/api/auth/signup', dataToSubmit);
-      
+
       if (response.error) {
         setError(response.error);
       } else {
-        navigation.navigate('ValidateEmail');
+        router.push('/auth/validate-email');
       }
     } catch (error) {
       console.error('Signup failed:', error);
@@ -254,8 +246,8 @@ const SignupScreen = () => {
       />
 
       <Text style={styles(theme).fieldLabel}>Doğum Tarihiniz</Text>
-      <TouchableOpacity 
-        style={styles(theme).datePickerButton} 
+      <TouchableOpacity
+        style={styles(theme).datePickerButton}
         onPress={() => setShowDatePicker(true)}
       >
         <MaterialIcons name="event" size={20} color={theme.colors.primary} style={styles(theme).datePickerIcon} />
@@ -291,7 +283,7 @@ const SignupScreen = () => {
   const renderStep2 = () => (
     <View style={styles(theme).dropdownContainer}>
       <Text style={styles(theme).fieldLabel}>Üniversite Bilgileri</Text>
-      
+
       <Text style={styles(theme).dropdownLabel}>Üniversiteniz</Text>
       <DropDownPicker
         open={universityOpen}
@@ -313,9 +305,9 @@ const SignupScreen = () => {
         zIndex={3000}
         zIndexInverse={1000}
       />
-      
+
       <View style={{ height: 20 }} />
-      
+
       <Text style={styles(theme).dropdownLabel}>Fakülteniz</Text>
       <DropDownPicker
         open={facultyOpen}
@@ -345,7 +337,7 @@ const SignupScreen = () => {
         placeholder={university ? (faculty ? faculty : "Fakülte seçin") : "Önce üniversite seçin"}
         zIndex={1}
       />
-      
+
       <View style={styles(theme).buttonContainer}>
         <Button
           mode="outlined"
@@ -360,7 +352,7 @@ const SignupScreen = () => {
         >
           Geri
         </Button>
-        
+
         <Button
           mode="contained"
           onPress={handleNext}
@@ -394,7 +386,7 @@ const SignupScreen = () => {
           theme={{ colors: { text: theme.colors.textDark, background: theme.colors.card } }}
         />
       </View>
-      
+
       <View style={styles(theme).inputContainer}>
         <MaterialIcons name="lock" size={20} color={theme.colors.primary} style={styles(theme).inputIcon} />
         <TextInput
@@ -409,15 +401,15 @@ const SignupScreen = () => {
           contentStyle={{ color: theme.colors.textDark }}
           theme={{ colors: { text: theme.colors.textDark, background: theme.colors.card } }}
           right={
-            <TextInput.Icon 
-              icon={passwordVisible ? "eye-off" : "eye"} 
+            <TextInput.Icon
+              icon={passwordVisible ? "eye-off" : "eye"}
               onPress={() => setPasswordVisible(!passwordVisible)}
               color={theme.colors.textLight}
             />
           }
         />
       </View>
-      
+
       <View style={styles(theme).inputContainer}>
         <MaterialIcons name="lock" size={20} color={theme.colors.primary} style={styles(theme).inputIcon} />
         <TextInput
@@ -432,15 +424,15 @@ const SignupScreen = () => {
           contentStyle={{ color: theme.colors.textDark }}
           theme={{ colors: { text: theme.colors.textDark, background: theme.colors.card } }}
           right={
-            <TextInput.Icon 
-              icon={confirmPasswordVisible ? "eye-off" : "eye"} 
+            <TextInput.Icon
+              icon={confirmPasswordVisible ? "eye-off" : "eye"}
               onPress={() => setConfirmPasswordVisible(!confirmPasswordVisible)}
               color={theme.colors.textLight}
             />
           }
         />
       </View>
-      
+
       <View style={styles(theme).buttonContainer}>
         <Button
           mode="outlined"
@@ -450,7 +442,7 @@ const SignupScreen = () => {
         >
           Geri
         </Button>
-        
+
         <Button
           mode="contained"
           onPress={handleSubmit}
@@ -477,23 +469,23 @@ const SignupScreen = () => {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles(theme).logoContainer}>
-          <Image 
-            source={require('../../assets/images/logo.png')} 
-            style={styles(theme).logo} 
+          <Image
+            source={require('../../assets/images/logo.png')}
+            style={styles(theme).logo}
             resizeMode="contain"
           />
-          <Text style={styles(theme).appName}>KampusTaxi</Text>
+          <Text style={styles(theme).appName}>KampüsRoute</Text>
           <Text style={styles(theme).tagline}>Güvenli ve ekonomik kampüs ulaşımı</Text>
         </View>
 
         <View style={styles(theme).formContainer}>
           <Text style={styles(theme).title}>Hesap Oluştur</Text>
-          
+
           <View style={styles(theme).progressContainer}>
             <Text style={styles(theme).stepText}>Adım {step}/3</Text>
-            <ProgressBar 
-              progress={progress} 
-              color={theme.colors.primary} 
+            <ProgressBar
+              progress={progress}
+              color={theme.colors.primary}
               style={styles(theme).progressBar}
             />
           </View>
@@ -504,20 +496,20 @@ const SignupScreen = () => {
           {step === 2 && renderStep2()}
           {step === 3 && renderStep3()}
         </View>
-        
+
         <TouchableOpacity
           // @ts-ignore
-          onPress={() => navigation.navigate('Login')}
+          onPress={() => router.push('/auth/login')}
           style={styles(theme).linkButton}
         >
           <Text style={styles(theme).linkText}>
             Zaten hesabın var mı? <Text style={styles(theme).linkTextBold}>Giriş Yap</Text>
           </Text>
         </TouchableOpacity>
-        
+
         <View style={styles(theme).footer}>
           <Text style={styles(theme).footerText}>
-            © {new Date().getFullYear()} KampusTaxi - Tüm hakları saklıdır
+            © {new Date().getFullYear()} KampüsRoute - Tüm hakları saklıdır
           </Text>
         </View>
       </ScrollView>

@@ -7,7 +7,7 @@ import {
   StyleProp,
   useColorScheme,
 } from 'react-native';
-import { lightTheme, darkTheme, ThemeType } from '../../styles/theme';
+import { lightTheme, darkTheme, ThemeType } from '../../src/styles/theme';
 
 interface SkeletonProps {
   width?: number | string;

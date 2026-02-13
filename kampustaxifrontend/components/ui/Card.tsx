@@ -8,7 +8,7 @@ import {
   TouchableOpacityProps,
   useColorScheme,
 } from 'react-native';
-import { lightTheme, darkTheme, ThemeType } from '../../styles/theme';
+import { lightTheme, darkTheme, ThemeType } from '../../src/styles/theme';
 
 interface CardProps {
   children: React.ReactNode;
@@ -27,7 +27,7 @@ export const Card: React.FC<CardProps> = ({
   style,
   elevation = 'small',
   padding = true,
-  borderRadius = 'md',
+  borderRadius = 'lg', // Default to 20px (lg)
 }) => {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
@@ -60,7 +60,7 @@ export const TouchableCard: React.FC<TouchableCardProps> = ({
   style,
   elevation = 'small',
   padding = true,
-  borderRadius = 'md',
+  borderRadius = 'lg', // Default to 20px (lg)
   activeOpacity = 0.7,
   ...rest
 }) => {

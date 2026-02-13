@@ -1,14 +1,14 @@
 import React from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  Image, 
-  TouchableOpacity, 
-  useColorScheme 
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  useColorScheme
 } from 'react-native';
 import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
-import { lightTheme, darkTheme, ThemeType } from '../styles/theme';
+import { lightTheme, darkTheme, ThemeType } from '../src/styles/theme';
 
 interface Vehicle {
   model: string;
@@ -49,7 +49,7 @@ const DriverCard: React.FC<DriverCardProps> = ({
 }) => {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-  
+
   // Generate initials from name
   const initials = name
     .split(' ')
@@ -57,12 +57,12 @@ const DriverCard: React.FC<DriverCardProps> = ({
     .join('')
     .toUpperCase()
     .substring(0, 2);
-  
+
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles(theme).container}
       onPress={onPress}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
       disabled={!onPress}
     >
       <View style={styles(theme).driverInfoSection}>
@@ -75,18 +75,18 @@ const DriverCard: React.FC<DriverCardProps> = ({
             </View>
           )}
           {isAvailable !== undefined && (
-            <View 
+            <View
               style={[
-                styles(theme).statusDot, 
+                styles(theme).statusDot,
                 { backgroundColor: isAvailable ? theme.colors.success : theme.colors.error }
-              ]} 
+              ]}
             />
           )}
         </View>
-        
+
         <View style={styles(theme).driverDetails}>
           <Text style={styles(theme).driverName}>{name}</Text>
-          
+
           <View style={styles(theme).ratingContainer}>
             <FontAwesome name="star" size={14} color={theme.colors.warning} />
             <Text style={styles(theme).ratingText}>{rating.toFixed(1)}</Text>
@@ -96,13 +96,13 @@ const DriverCard: React.FC<DriverCardProps> = ({
               </Text>
             )}
           </View>
-          
+
           {distance !== undefined && (
             <Text style={styles(theme).distanceText}>
-              <MaterialIcons 
-                name={distanceUnit === 'min' ? 'schedule' : 'directions-car'} 
-                size={12} 
-                color={theme.colors.textLight} 
+              <MaterialIcons
+                name={distanceUnit === 'min' ? 'schedule' : 'directions-car'}
+                size={12}
+                color={theme.colors.textLight}
               />
               {' '}
               {distance} {distanceUnit === 'min' ? 'minutes away' : 'km away'}
@@ -110,31 +110,31 @@ const DriverCard: React.FC<DriverCardProps> = ({
           )}
         </View>
       </View>
-      
+
       {vehicle && (
         <View style={styles(theme).vehicleInfoSection}>
           <Text style={styles(theme).vehicleTitle}>Vehicle</Text>
           <Text style={styles(theme).vehicleInfo}>
-            {vehicle.brand} {vehicle.model} 
+            {vehicle.brand} {vehicle.model}
             {vehicle.color && ` • ${vehicle.color}`}
           </Text>
           {vehicle.plateNumber && (
             <Text style={styles(theme).plateNumber}>{vehicle.plateNumber}</Text>
           )}
           {vehicle.photoUrl && (
-            <Image 
-              source={{ uri: vehicle.photoUrl }} 
+            <Image
+              source={{ uri: vehicle.photoUrl }}
               style={styles(theme).vehicleImage}
               resizeMode="contain"
             />
           )}
         </View>
       )}
-      
+
       {(onMessagePress || onCallPress) && (
         <View style={styles(theme).actionsSection}>
           {onMessagePress && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles(theme).actionButton}
               onPress={onMessagePress}
               activeOpacity={0.7}
@@ -143,9 +143,9 @@ const DriverCard: React.FC<DriverCardProps> = ({
               <Text style={styles(theme).actionText}>Message</Text>
             </TouchableOpacity>
           )}
-          
+
           {onCallPress && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles(theme).actionButton}
               onPress={onCallPress}
               activeOpacity={0.7}
@@ -163,10 +163,12 @@ const DriverCard: React.FC<DriverCardProps> = ({
 const styles = (theme: ThemeType) => StyleSheet.create({
   container: {
     backgroundColor: theme.colors.card,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.lg, // 20px
     padding: theme.spacing.md,
     ...theme.shadows.sm,
     marginBottom: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   driverInfoSection: {
     flexDirection: 'row',
@@ -185,7 +187,7 @@ const styles = (theme: ThemeType) => StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: theme.colors.primary + '30',
+    backgroundColor: theme.colors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -209,8 +211,9 @@ const styles = (theme: ThemeType) => StyleSheet.create({
   },
   driverName: {
     ...theme.textStyles.header3,
-    color: theme.colors.textDark,
-    marginBottom: theme.spacing.xs,
+    color: theme.colors.text,
+    fontFamily: theme.typography.fontFamily.medium,
+    marginBottom: 2,
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -219,7 +222,7 @@ const styles = (theme: ThemeType) => StyleSheet.create({
   },
   ratingText: {
     ...theme.textStyles.body,
-    color: theme.colors.textDark,
+    color: theme.colors.text,
     fontWeight: '500',
     marginLeft: theme.spacing.xs,
     marginRight: theme.spacing.xs,
@@ -245,18 +248,18 @@ const styles = (theme: ThemeType) => StyleSheet.create({
   },
   vehicleInfo: {
     ...theme.textStyles.body,
-    color: theme.colors.textDark,
+    color: theme.colors.text,
   },
   plateNumber: {
     ...theme.textStyles.body,
-    fontWeight: '500',
-    color: theme.colors.textDark,
+    fontWeight: '600',
+    color: theme.colors.text,
     marginTop: theme.spacing.xs,
   },
   vehicleImage: {
     width: '100%',
-    height: 80,
-    borderRadius: theme.borderRadius.sm,
+    height: 100,
+    borderRadius: theme.borderRadius.md,
     marginTop: theme.spacing.sm,
   },
   actionsSection: {
@@ -269,11 +272,16 @@ const styles = (theme: ThemeType) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: theme.spacing.lg,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.full,
   },
   actionText: {
-    ...theme.textStyles.body,
+    ...theme.textStyles.bodySmall,
     color: theme.colors.primary,
     marginLeft: theme.spacing.xs,
+    fontWeight: '600',
   },
 });
 

@@ -1,8 +1,8 @@
 import React from 'react';
-import { 
-  TouchableOpacity, 
-  Text, 
-  StyleSheet, 
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
   ActivityIndicator,
   StyleProp,
   ViewStyle,
@@ -10,7 +10,7 @@ import {
   TouchableOpacityProps
 } from 'react-native';
 import { useColorScheme } from 'react-native';
-import { lightTheme, darkTheme, ThemeType } from '../../styles/theme';
+import { lightTheme, darkTheme, ThemeType } from '../../src/styles/theme';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger';
 export type ButtonSize = 'small' | 'medium' | 'large';
@@ -69,9 +69,9 @@ export const Button: React.FC<ButtonProps> = ({
       {...rest}
     >
       {isLoading ? (
-        <ActivityIndicator 
-          size="small" 
-          color={variant === 'outline' ? theme.colors.primary : theme.colors.white} 
+        <ActivityIndicator
+          size="small"
+          color={variant === 'outline' ? theme.colors.primary : theme.colors.white}
         />
       ) : (
         <>
@@ -89,12 +89,12 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.full, // Rounder buttons for Lyft style
   },
   fullWidth: {
     width: '100%',
   },
-  
+
   // Variant styles
   primaryButton: {
     backgroundColor: theme.colors.primary,
@@ -113,10 +113,10 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
     backgroundColor: theme.colors.error,
     ...theme.shadows.sm,
   },
-  
+
   // Disabled styles
   primaryButtonDisabled: {
-    backgroundColor: theme.colors.primary + '80',
+    backgroundColor: theme.colors.primary + '80', // 50% opacity
     ...theme.shadows.none,
   },
   secondaryButtonDisabled: {
@@ -130,7 +130,7 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
     backgroundColor: theme.colors.error + '80',
     ...theme.shadows.none,
   },
-  
+
   // Size styles
   smallButton: {
     paddingVertical: theme.spacing.xs,
@@ -140,18 +140,19 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
   mediumButton: {
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.lg,
-    minHeight: 44,
+    minHeight: 48, // Slightly taller
   },
   largeButton: {
     paddingVertical: theme.spacing.md,
     paddingHorizontal: theme.spacing.xl,
-    minHeight: 52,
+    minHeight: 56, // Taller for primary actions
   },
-  
+
   // Text styles
   buttonText: {
     fontWeight: '600',
     textAlign: 'center',
+    fontFamily: theme.typography.fontFamily.medium,
   },
   primaryText: {
     color: theme.colors.white,
@@ -165,16 +166,16 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
   dangerText: {
     color: theme.colors.white,
   },
-  
-  // Text size styles
+
+  // Text size styles - using theme values
   smallText: {
-    fontSize: 14,
+    fontSize: theme.typography.fontSize.sm,
   },
   mediumText: {
-    fontSize: 16,
+    fontSize: theme.typography.fontSize.base,
   },
   largeText: {
-    fontSize: 18,
+    fontSize: theme.typography.fontSize.md,
   },
 });
 

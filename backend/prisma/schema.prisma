@@ -28,9 +28,7 @@ model User {
   messagesReceived Message[] @relation("MessageReceiver") // Messages received by the user
   carId          String?  @map("car_id")
   car            Car?     @relation("CarUser")
-  wallet         Wallet?  @relation("UserWallet")
-  walletId       String?  @map("wallet_id")
-  iban           String? // IBAN for driver, nullable
+
   createdAt      DateTime @default(now())
   @@map("users")
 }
@@ -54,8 +52,7 @@ model Post {
   route                   String   // This could be a JSON or a more complex type if needed
   datetimeStart           DateTime
   datetimeEnd             DateTime
-  price                   Float
-  fare                    Float // Payment amount for the ride
+
   interestedUsers         InterestedUser[] // Relation to UserPost join model
   matchedUserId           String?   @map("matched_user_id") // Foreign key to User, optional
   matchedUser             User?     @relation("MatchedUser", fields: [matchedUserId], references: [id]) // Relation to User
@@ -108,25 +105,7 @@ model Car {
   updatedAt DateTime @updatedAt
 }
 
-model Wallet {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId          String   @unique @map("user_id")
-  user            User?    @relation("UserWallet", fields: [userId], references: [id])
-  depositBalance  Float    @default(0.0)
-  earningsBalance Float    @default(0.0)
-  transactions    Transaction[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-}
 
-model Transaction {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  walletId  String   @map("wallet_id")
-  type      String   // 'deposit', 'withdraw', 'spend'
-  amount    Float
-  createdAt DateTime @default(now())
-  wallet    Wallet   @relation(fields: [walletId], references: [id])
-}
 
 // Define notification types
 enum NotificationType {
@@ -140,7 +119,7 @@ enum NotificationType {
 enum ReferenceModel {
   Post
   User
-  Payment
+
 }
 
 // Notification model

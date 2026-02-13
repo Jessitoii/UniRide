@@ -34,7 +34,7 @@ router.get('/profile', auth, async (req, res) => {
       include: {
         posts: true,
         car: true,   // Include car relation
-        wallet: true, // Include wallet relation
+
         interestedIn: {
           include: {
             user: true,
@@ -128,7 +128,7 @@ router.put('/profile', auth, upload.single('profilePhoto'), async (req, res) => 
 router.post('/welcome-notification', auth, async (req, res) => {
   try {
     const userId = req.user.userId;
-    
+
     await createNotification(
       userId,
       'system',
@@ -137,7 +137,7 @@ router.post('/welcome-notification', auth, async (req, res) => {
       userId,
       'User'
     );
-    
+
     res.status(200).json({ message: 'Welcome notification created' });
   } catch (error) {
     console.error('Welcome notification error:', error);
@@ -182,7 +182,6 @@ router.get('/travel-data', auth, async (req, res) => {
         stars: true,
         university: true,
         faculty: true,
-        iban: true,
       },
     });
 
@@ -198,7 +197,6 @@ router.get('/travel-data', auth, async (req, res) => {
             id: true,
             name: true,
             stars: true,
-            iban: true,
           },
         },
         matchedUser: {
@@ -206,7 +204,6 @@ router.get('/travel-data', auth, async (req, res) => {
             id: true,
             name: true,
             stars: true,
-            iban: true,
           },
         },
       },

@@ -3,6 +3,15 @@
     "@react-navigation/bottom-tabs": "^7.2.1",
     "@react-navigation/drawer": "^7.1.2",
     "date-fns": "^4.1.0",
-    "expo-clipboard": "^7.1.5"
+    "expo-clipboard": "^7.1.5",
+    "expo": "~53.0.27",
+    "react": "19.0.0",
+    "react-native": "0.79.6"
+  },
+  "name": "KampusTaxi",
+  "version": "1.0.0",
+  "scripts": {
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   }
 }
