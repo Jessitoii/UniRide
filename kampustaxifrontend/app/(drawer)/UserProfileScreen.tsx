@@ -10,22 +10,22 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
-  useColorScheme
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { BASE_URL } from '@/env';
 import Review from '@/components/Review';
 import Post from '@/components/Post';
-import { lightTheme, darkTheme, ThemeType } from '@/styles/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { ThemeType } from '@/styles/theme';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
-// Define interface for location coordinates
+// Types... (keeping same interfaces)
 interface LocationCoordinates {
   latitude: number;
   longitude: number;
 }
 
-// Define interface for user profile data
 interface UserProfile {
   id: string;
   name: string;
@@ -47,7 +47,6 @@ interface UserProfile {
   };
 }
 
-// Define interface for post data
 interface PostData {
   id: string;
   userId: string;
@@ -55,7 +54,6 @@ interface PostData {
   destinationFaculty: string;
   datetimeStart: string;
   datetimeEnd: string;
-
   route: string;
   user: {
     id: string;
@@ -64,7 +62,6 @@ interface PostData {
   };
 }
 
-// Define interface for review data
 interface ReviewData {
   id: string;
   userId: string;
@@ -77,289 +74,60 @@ interface ReviewData {
   };
 }
 
-
-
 export default function UserProfileScreen() {
-  // State variables
+  const { t } = useTranslation();
+  const { theme, isDark } = useTheme();
+  const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
+
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [profilePhoto, setProfilePhoto] = useState<string>('https://img.icons8.com/ios/50/gender-neutral-user--v1.png');
   const [reviews, setReviews] = useState<ReviewData[]>([]);
 
-  // Navigation and params
-  const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
-
-  // Get color scheme for theming
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-
-  // Fetch user profile data on component mount
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         setLoading(true);
         setError(null);
-
-        const response = await fetch(`${BASE_URL}/api/users/${id}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        });
-
+        const response = await fetch(`${BASE_URL}/api/users/${id}`);
         if (response.ok) {
           const data = await response.json();
           setProfile(data);
           fetchProfilePhoto(data.id);
           fetchReviews(data.id);
         } else {
-          const errorData = await response.json();
-          console.error('Profile fetch error:', errorData);
-          setError('Failed to load user profile. Please try again later.');
+          setError(t('error_load_profile'));
         }
-      } catch (error) {
-        console.error('Error fetching profile:', error);
-        setError('An unexpected error occurred. Please check your connection and try again.');
+      } catch (err) {
+        setError(t('error_unexpected'));
       } finally {
         setLoading(false);
       }
     };
-
-    fetchProfile();
+    if (id) fetchProfile();
   }, [id]);
 
-  // Fetch user profile photo
   const fetchProfilePhoto = async (userId: string) => {
-    try {
-      const response = await fetch(`${BASE_URL}/api/users/profilePhoto/${userId}`);
-      if (response.ok) {
-        setProfilePhoto(`${BASE_URL}/api/users/profilePhoto/${userId}`);
-      } else {
-        console.error('Error fetching profile photo');
-        setProfilePhoto('https://img.icons8.com/ios/50/gender-neutral-user--v1.png');
-      }
-    } catch (error) {
-      console.error('Error fetching profile photo:', error);
-      setProfilePhoto('https://img.icons8.com/ios/50/gender-neutral-user--v1.png');
-    }
+    const photoUrl = `${BASE_URL}/api/users/profilePhoto/${userId}`;
+    setProfilePhoto(photoUrl);
   };
 
-  // Fetch user reviews
   const fetchReviews = async (userId: string) => {
     try {
       const response = await fetch(`${BASE_URL}/api/review/${userId}`);
       if (response.ok) {
-        const data = await response.json();
-        setReviews(data);
-      } else {
-        console.error('Error fetching reviews:', await response.json());
+        setReviews(await response.json());
       }
-    } catch (error) {
-      console.error('Error fetching reviews:', error);
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  // Extract district from address for display
-  const extractDistrict = (address: string) => {
-    if (!address) return '';
-    const parts = address.split(',');
-    return parts[0].trim();
-  };
+  const extractDistrict = (address: string) => address?.split(',')[0]?.trim() || '';
+  const formatDate = (dateString: string) => dateString ? new Date(dateString).toLocaleDateString() : '';
 
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '';
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  // Render the user's basic information
-  const renderProfileHeader = () => (
-    <View style={styles(theme).profileHeader}>
-      <TouchableOpacity
-        style={styles(theme).backButton}
-        onPress={() => router.back()}
-        activeOpacity={0.7}
-      >
-        <MaterialIcons name="arrow-back" size={24} color={theme.colors.primary} />
-      </TouchableOpacity>
-
-      <Text style={styles(theme).headerTitle}>Kullanıcı Profili</Text>
-
-      <View style={styles(theme).profileInfo}>
-        <Image source={{ uri: profilePhoto }} style={styles(theme).avatar} />
-        <View style={styles(theme).nameContainer}>
-          <Text style={styles(theme).name}>
-            {profile?.name} {profile?.surname}
-          </Text>
-          {profile?.university && (
-            <Text style={styles(theme).university}>{profile.university} Üniversitesi</Text>
-          )}
-          {profile?.bio && (
-            <Text style={styles(theme).bio}>{profile.bio}</Text>
-          )}
-          <View style={styles(theme).stars}>
-            <Text style={styles(theme).starsText}>
-              {Array.from({ length: profile?.stars || 0 }).map((_, index) => (
-                <MaterialIcons key={index} name="star" size={20} color={theme.colors.secondary} />
-              ))}
-              ({reviews.length} değerlendirme)
-            </Text>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-
-  // Render the user's detailed information
-  const renderUserDetails = () => (
-    <View style={styles(theme).detailsCard}>
-      <Text style={styles(theme).sectionTitle}>Kullanıcı Bilgileri</Text>
-
-      <View style={styles(theme).detailRow}>
-        <MaterialIcons name="email" size={20} color={theme.colors.secondary} />
-        <Text style={styles(theme).detailText}>
-          <Text style={styles(theme).detailLabel}>Email: </Text>
-          {profile?.email}
-        </Text>
-      </View>
-
-      {profile?.gender && (
-        <View style={styles(theme).detailRow}>
-          <MaterialIcons name="person" size={20} color={theme.colors.secondary} />
-          <Text style={styles(theme).detailText}>
-            <Text style={styles(theme).detailLabel}>Cinsiyet: </Text>
-            {profile.gender}
-          </Text>
-        </View>
-      )}
-
-      {profile?.birthDate && (
-        <View style={styles(theme).detailRow}>
-          <MaterialIcons name="cake" size={20} color={theme.colors.secondary} />
-          <Text style={styles(theme).detailText}>
-            <Text style={styles(theme).detailLabel}>Doğum Tarihi: </Text>
-            {formatDate(profile.birthDate)}
-          </Text>
-        </View>
-      )}
-
-      {profile?.createdAt && (
-        <View style={styles(theme).detailRow}>
-          <MaterialIcons name="date-range" size={20} color={theme.colors.secondary} />
-          <Text style={styles(theme).detailText}>
-            <Text style={styles(theme).detailLabel}>Katılma Tarihi: </Text>
-            {formatDate(profile.createdAt)}
-          </Text>
-        </View>
-      )}
-
-      {/* Car Information */}
-      {profile?.car && (
-        <View style={styles(theme).carInfoContainer}>
-          <Text style={styles(theme).carInfoTitle}>Araç Bilgileri</Text>
-
-          <View style={styles(theme).carDetailsRow}>
-            <View style={styles(theme).carDetailItem}>
-              <MaterialIcons name="directions-car" size={20} color={theme.colors.primary} />
-              <Text style={styles(theme).carDetailText}>
-                {profile.car.brand} {profile.car.model} {profile.car.year || ''}
-              </Text>
-            </View>
-
-            <View style={styles(theme).carDetailItem}>
-              <MaterialIcons name="palette" size={20} color={theme.colors.textLight} />
-              <Text style={styles(theme).carDetailText}>
-                {profile.car.color}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles(theme).carPlateContainer}>
-            <MaterialIcons name="credit-card" size={20} color={theme.colors.textLight} />
-            <Text style={styles(theme).carPlateText}>
-              {profile.car.plateNumber}
-            </Text>
-          </View>
-        </View>
-      )}
-    </View>
-  );
-
-  // Render the user's reviews
-  const renderReviews = () => (
-    <View style={styles(theme).sectionContainer}>
-      <Text style={styles(theme).sectionTitle}>Değerlendirmeler</Text>
-      <View style={styles(theme).reviewsContainer}>
-        {reviews.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles(theme).reviewsScrollContent}
-          >
-            {reviews.map((review, index) => (
-              <Review
-                key={index}
-                userId={review.userId}
-                name={review.user.name}
-                surname={review.user.surname || ''}
-                comment={review.comment}
-                star={review.star}
-              />
-            ))}
-          </ScrollView>
-        ) : (
-          <View style={styles(theme).emptyStateContainer}>
-            <MaterialIcons name="star-border" size={40} color={theme.colors.textLight} />
-            <Text style={styles(theme).emptyStateText}>Bu kullanıcının henüz değerlendirmesi yok</Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-
-  // Render the user's posts
-  const renderPosts = () => (
-    <View style={styles(theme).sectionContainer}>
-      <Text style={styles(theme).sectionTitle}>Seyahatler</Text>
-      {profile?.posts && profile.posts.length > 0 ? (
-        profile.posts.map((post, index) => (
-          <Post
-            key={index}
-            id={post.id}
-            userId={post.userId}
-            from={extractDistrict(post.sourceAddress)}
-            to={post.destinationFaculty}
-            userName={profile.name}
-            date={formatDate(post.datetimeStart)}
-            startTime={new Date(post.datetimeStart).toLocaleTimeString()}
-            endTime={new Date(post.datetimeEnd).toLocaleTimeString()}
-
-            route={post.route}
-            userLocation={null}
-            onPress={() => {
-              router.push({
-                pathname: '/(drawer)/PostDetailScreen',
-                params: {
-                  postId: post.id,
-                  userLocation: null
-                }
-              });
-            }}
-            stars={profile.stars}
-          />
-        ))
-      ) : (
-        <View style={styles(theme).emptyStateContainer}>
-          <MaterialIcons name="directions-car" size={40} color={theme.colors.textLight} />
-          <Text style={styles(theme).emptyStateText}>Bu kullanıcının henüz seyahati yok</Text>
-        </View>
-      )}
-    </View>
-  );
-
-  // Loading state
   if (loading) {
     return (
       <View style={styles(theme).loadingContainer}>
@@ -368,35 +136,137 @@ export default function UserProfileScreen() {
     );
   }
 
-  // Error state
   if (error || !profile) {
     return (
       <View style={styles(theme).errorContainer}>
         <MaterialIcons name="error-outline" size={60} color={theme.colors.error} />
-        <Text style={styles(theme).errorText}>{error || 'Profile information not available'}</Text>
-        <TouchableOpacity
-          style={styles(theme).retryButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles(theme).retryButtonText}>Go Back</Text>
+        <Text style={styles(theme).errorText}>{error || t('error_profile_not_found')}</Text>
+        <TouchableOpacity style={styles(theme).retryButton} onPress={() => router.back()}>
+          <Text style={styles(theme).retryButtonText}>{t('go_back')}</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <>
-      <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} />
-      <ScrollView
-        style={styles(theme).container}
-        contentContainerStyle={styles(theme).contentContainer}
-      >
-        {renderProfileHeader()}
-        {renderUserDetails()}
-        {renderReviews()}
-        {renderPosts()}
+    <View style={styles(theme).container}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+      <ScrollView contentContainerStyle={styles(theme).scrollContent} showsVerticalScrollIndicator={false}>
+
+        {/* Header / Profile Card */}
+        <View style={styles(theme).profileHeader}>
+          <TouchableOpacity style={styles(theme).backButton} onPress={() => router.back()}>
+            <MaterialIcons name="arrow-back" size={24} color={theme.colors.textDark} />
+          </TouchableOpacity>
+
+          <View style={styles(theme).avatarContainer}>
+            <Image source={{ uri: profilePhoto }} style={styles(theme).avatar} />
+            <View style={styles(theme).onlineBadge} />
+          </View>
+
+          <Text style={styles(theme).name}>{profile.name} {profile.surname}</Text>
+
+          <View style={styles(theme).badgeRow}>
+            {profile.university && (
+              <View style={styles(theme).verificationBadge}>
+                <MaterialIcons name="verified" size={16} color={theme.colors.info} />
+                <Text style={styles(theme).verificationText}>{t('student')}</Text>
+              </View>
+            )}
+            <View style={styles(theme).ratingBadge}>
+              <MaterialIcons name="star" size={16} color={theme.colors.warning} />
+              <Text style={styles(theme).ratingText}>{profile.stars.toFixed(1)}</Text>
+            </View>
+          </View>
+
+          {profile.bio && <Text style={styles(theme).bio}>{profile.bio}</Text>}
+        </View>
+
+        {/* Info Grid */}
+        <View style={styles(theme).gridContainer}>
+          <View style={styles(theme).gridItem}>
+            <Text style={styles(theme).gridLabel}>{t('university')}</Text>
+            <Text style={styles(theme).gridValue} numberOfLines={1}>{profile.university || t('not_specified')}</Text>
+          </View>
+          <View style={styles(theme).gridItem}>
+            <Text style={styles(theme).gridLabel}>{t('joined_at')}</Text>
+            <Text style={styles(theme).gridValue}>{formatDate(profile.createdAt)}</Text>
+          </View>
+        </View>
+
+        {/* Car Info */}
+        {profile.car && (
+          <View style={styles(theme).sectionCard}>
+            <Text style={styles(theme).sectionTitle}>{t('car_info')}</Text>
+            <View style={styles(theme).carRow}>
+              <View style={styles(theme).carIconBox}>
+                <MaterialIcons name="directions-car" size={24} color={theme.colors.primary} />
+              </View>
+              <View>
+                <Text style={styles(theme).carModel}>{profile.car.brand} {profile.car.model}</Text>
+                <Text style={styles(theme).carPlate}>{profile.car.plateNumber} • {profile.car.color}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Reviews */}
+        <View style={styles(theme).sectionContainer}>
+          <View style={styles(theme).sectionHeader}>
+            <Text style={styles(theme).sectionTitle}>{t('reviews')} ({reviews.length})</Text>
+            {reviews.length > 0 && (
+              <TouchableOpacity>
+                <Text style={styles(theme).seeAllText}>{t('all')}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {reviews.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 4 }}>
+              {reviews.map((review, index) => (
+                <View key={index} style={{ width: 280, marginRight: 12 }}>
+                  <Review
+                    userId={review.userId}
+                    name={review.user.name}
+                    surname={review.user.surname || ''}
+                    comment={review.comment}
+                    star={review.star}
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={styles(theme).emptyText}>{t('no_reviews')}</Text>
+          )}
+        </View>
+
+        {/* Posts */}
+        <View style={styles(theme).sectionContainer}>
+          <Text style={styles(theme).sectionTitle}>{t('recent_trips')}</Text>
+          {profile.posts.length > 0 ? (
+            profile.posts.map((post, idx) => (
+              <Post
+                key={idx}
+                id={post.id}
+                userId={post.userId}
+                from={extractDistrict(post.sourceAddress)}
+                to={post.destinationFaculty}
+                userName={profile.name}
+                date={formatDate(post.datetimeStart)}
+                startTime={new Date(post.datetimeStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                endTime={new Date(post.datetimeEnd).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                route={post.route}
+                userLocation={null}
+                stars={profile.stars}
+                onPress={() => router.push({ pathname: '/(drawer)/PostDetailScreen', params: { postId: post.id } })}
+              />
+            ))
+          ) : (
+            <Text style={styles(theme).emptyText}>{t('no_trips_yet')}</Text>
+          )}
+        </View>
+
       </ScrollView>
-    </>
+    </View>
   );
 }
 
@@ -405,191 +275,209 @@ const styles = (theme: ThemeType) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  contentContainer: {
-    paddingBottom: theme.spacing.xl,
+  scrollContent: {
+    paddingBottom: theme.spacing['4xl'],
   },
   loadingContainer: {
     flex: 1,
+    backgroundColor: theme.colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.background,
   },
   errorContainer: {
     flex: 1,
+    backgroundColor: theme.colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.background,
-    padding: theme.spacing.lg,
+    padding: theme.spacing.xl,
   },
   errorText: {
     ...theme.textStyles.body,
     color: theme.colors.error,
+    marginVertical: theme.spacing.lg,
     textAlign: 'center',
-    marginTop: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
   },
   retryButton: {
     backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.full,
   },
   retryButtonText: {
     ...theme.textStyles.button,
-    color: theme.colors.white,
+    color: 'white',
   },
+
+  // Profile Header
   profileHeader: {
+    alignItems: 'center',
     backgroundColor: theme.colors.card,
-    paddingTop: (StatusBar.currentHeight || 0) + theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-    borderBottomLeftRadius: theme.borderRadius.lg,
-    borderBottomRightRadius: theme.borderRadius.lg,
-    ...theme.shadows.base,
+    paddingTop: theme.spacing['4xl'],
+    paddingBottom: theme.spacing.xl,
+    borderBottomLeftRadius: theme.borderRadius['2xl'],
+    borderBottomRightRadius: theme.borderRadius['2xl'],
+    ...theme.shadows.md,
+    marginBottom: theme.spacing.lg,
   },
   backButton: {
     position: 'absolute',
-    top: (StatusBar.currentHeight || 0) + theme.spacing.md,
-    left: theme.spacing.md,
-    width: 40,
-    height: 40,
+    top: theme.spacing['4xl'], // Safe area
+    left: theme.spacing.lg,
+    zIndex: 10,
+    padding: 8,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1,
+    backgroundColor: theme.colors.surface,
   },
-  headerTitle: {
-    ...theme.textStyles.header2,
-    color: theme.colors.textDark,
-    textAlign: 'center',
-    marginTop: theme.spacing.lg,
+  avatarContainer: {
+    position: 'relative',
     marginBottom: theme.spacing.md,
   },
-  profileInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg,
-  },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 2,
-    borderColor: theme.colors.secondary,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: theme.colors.surface,
   },
-  nameContainer: {
-    marginLeft: theme.spacing.md,
-    flex: 1,
+  onlineBadge: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: theme.colors.success,
+    borderWidth: 2,
+    borderColor: theme.colors.card,
   },
   name: {
-    ...theme.textStyles.header3,
+    ...theme.textStyles.header2,
     color: theme.colors.textDark,
-  },
-  university: {
-    ...theme.textStyles.body,
-    color: theme.colors.textLight,
-    marginTop: 2,
+    marginBottom: theme.spacing.xs,
   },
   bio: {
     ...theme.textStyles.bodySmall,
     color: theme.colors.textLight,
-    marginTop: theme.spacing.xs,
+    textAlign: 'center',
+    paddingHorizontal: theme.spacing.xl,
+    marginBottom: theme.spacing.md,
   },
-  stars: {
-    marginTop: theme.spacing['sm'],
+  badgeRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
   },
-  starsText: {
+  verificationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.info + '20', // Transparent info
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  verificationText: {
+    ...theme.textStyles.caption,
+    color: theme.colors.info,
+    fontWeight: '600',
+  },
+  ratingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.warning + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  ratingText: {
+    ...theme.textStyles.caption,
+    color: theme.colors.warning,
+    fontWeight: '700',
+  },
+
+  // Grid
+  gridContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: theme.spacing.lg,
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+  },
+  gridItem: {
+    flex: 1,
+    backgroundColor: theme.colors.card,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    alignItems: 'center',
+    ...theme.shadows.sm,
+  },
+  gridLabel: {
+    ...theme.textStyles.caption,
+    color: theme.colors.textLight,
+    marginBottom: 4,
+  },
+  gridValue: {
     ...theme.textStyles.body,
+    fontWeight: '600',
     color: theme.colors.textDark,
   },
-  detailsCard: {
-    margin: theme.spacing.md,
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.card,
-    borderRadius: theme.borderRadius.md,
-    ...theme.shadows.base,
-  },
+
+  // Section
   sectionContainer: {
-    margin: theme.spacing.md,
-    marginTop: 0,
+    marginBottom: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
   },
   sectionTitle: {
     ...theme.textStyles.header3,
     color: theme.colors.textDark,
-    marginBottom: theme.spacing.md,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: theme.spacing.sm,
   },
-  detailText: {
-    ...theme.textStyles.body,
-    color: theme.colors.textDark,
-    marginLeft: theme.spacing.sm,
+  seeAllText: {
+    ...theme.textStyles.caption,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
-  detailLabel: {
-    fontWeight: '500',
-  },
-  reviewsContainer: {
-    backgroundColor: theme.colors.card,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.sm,
-    ...theme.shadows.base,
-  },
-  reviewsScrollContent: {
-    paddingVertical: theme.spacing.xs,
-  },
-  emptyStateContainer: {
-    alignItems: 'center',
-    padding: theme.spacing.lg,
-  },
-  emptyStateText: {
+  emptyText: {
     ...theme.textStyles.body,
     color: theme.colors.textLight,
-    textAlign: 'center',
-    marginTop: theme.spacing.sm,
+    fontStyle: 'italic',
   },
-  carInfoContainer: {
-    marginTop: theme.spacing.md,
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    borderLeftWidth: 3,
-    borderLeftColor: theme.colors.primary,
-  },
-  carInfoTitle: {
-    ...theme.textStyles.header3,
-    fontSize: 16,
-    color: theme.colors.textDark,
-    marginBottom: theme.spacing.sm,
-  },
-  carDetailsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.sm,
-  },
-  carDetailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  carDetailText: {
-    ...theme.textStyles.body,
-    color: theme.colors.textDark,
-    marginLeft: theme.spacing.xs,
-  },
-  carPlateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+
+  // Car
+  sectionCard: {
     backgroundColor: theme.colors.card,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.sm,
-    alignSelf: 'flex-start',
+    marginHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    padding: theme.spacing.lg,
+    borderRadius: theme.borderRadius.lg,
+    ...theme.shadows.sm,
   },
-  carPlateText: {
+  carRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  carIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: theme.colors.primaryTransparent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: theme.spacing.md,
+  },
+  carModel: {
     ...theme.textStyles.body,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: theme.colors.textDark,
-    marginLeft: theme.spacing.xs,
   },
-}); 
+  carPlate: {
+    ...theme.textStyles.caption,
+    color: theme.colors.textLight,
+  },
+});

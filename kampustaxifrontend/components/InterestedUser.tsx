@@ -1,24 +1,22 @@
-'use client';
-
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Image } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
-import Profile from './Profile';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BASE_URL } from '../env';
-import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 
 interface InterestedUserProps {
   userId: string;
-  postId: string;
+  postId: string; // Kept for navigation if needed, though simpler via parent
   userName: string;
   university: string;
   bio: string;
   route: any;
   userLocation: { latitude: number; longitude: number } | null;
   stars: number;
-  matched: boolean;
+  matchedUserId?: string; // ID of the user who is matched (if any)
+  onMatchPress: (userId: string) => void;
 }
 
 const InterestedUser: React.FC<InterestedUserProps> = ({
@@ -30,206 +28,203 @@ const InterestedUser: React.FC<InterestedUserProps> = ({
   route,
   userLocation,
   stars,
-  matched,
+  matchedUserId,
+  onMatchPress,
 }) => {
+  const { theme } = useTheme();
+  const { t } = useTranslation();
+  const router = useRouter();
+
   if (!userLocation) {
-    console.error('User location is not defined for user:', userId);
     return null;
   }
 
-  const handleMatch = async (interestedUserId: string) => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${BASE_URL}/api/posts/${postId}/match`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ matchedUserId: interestedUserId }),
-      });
+  const isMatchedWithThisUser = matchedUserId === userId;
+  const isPostMatched = !!matchedUserId;
 
-      const responseText = await response.text();
-
-      if (response.ok) {
-        console.log('User matched successfully');
-        // Optionally, update the state to reflect the change
-      } else {
-        console.error('Error matching user:', responseText);
-      }
-    } catch (error) {
-      console.error('Error matching user:', error);
-    }
-  };
+  // Don't show match button for other users if post is already matched to someone else
+  const showMatchButton = !isPostMatched || isMatchedWithThisUser;
 
   return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => router.push({ pathname: '/(drawer)/PostDetailScreen', params: { postId } })}
-      activeOpacity={0.9}
-    >
-      <View style={styles.container}>
-        {/* User Profile Section */}
-        <View style={styles.profileSection}>
-          <View style={styles.profileHeader}>
-            <View style={styles.avatarContainer}>
-              <View style={styles.avatar}>
-                <MaterialIcons name="person" size={24} color="#ccc" />
-              </View>
-            </View>
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>{userName}</Text>
-              <Text style={styles.userUniversity}>{university}</Text>
-              <View style={styles.starsRow}>
-                <MaterialIcons name="star" size={16} color="#4b39ef" />
-                <Text style={styles.starsText}>{stars}</Text>
-              </View>
-            </View>
+    <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+      {/* Header / Identity Section */}
+      <TouchableOpacity
+        style={styles.header}
+        onPress={() => router.push({ pathname: '/(drawer)/PostDetailScreen', params: { postId } })} // Or to user profile?
+        activeOpacity={0.9}
+      >
+        <View style={styles.avatarContainer}>
+          {/* Placeholder Avatar - in real app pass avatarUrl prop */}
+          <View style={[styles.avatar, { backgroundColor: theme.colors.surface }]}>
+            <MaterialIcons name="person" size={24} color={theme.colors.textLight} />
           </View>
-          <Text style={styles.userBio} numberOfLines={3}>
-            {bio}
-          </Text>
         </View>
 
-        {/* Map Section */}
-        <View style={styles.mapSection}>
-          <View style={styles.mapContainer}>
-            <MapView
-              style={styles.map}
-              initialRegion={{
-                latitude: userLocation.latitude,
-                longitude: userLocation.longitude,
-                latitudeDelta: 0.0922,
-                longitudeDelta: 0.0421,
-              }}
-              scrollEnabled={false}
-              zoomEnabled={false}
-              rotateEnabled={false}
-              pitchEnabled={false}
-            >
-              <Polyline
-                coordinates={typeof route === 'string' ? JSON.parse(JSON.parse(route)) : route}
-                strokeWidth={2}
-                strokeColor="#4b39ef"
-              />
-              <Marker
-                coordinate={userLocation}
-                title="Passenger Location"
-                description="Current location of the passenger"
-              />
-            </MapView>
+        <View style={styles.userInfo}>
+          <View style={styles.nameRow}>
+            <Text style={[styles.userName, { color: theme.colors.textDark }]}>{userName}</Text>
+            {/* Star Badge */}
+            <View style={[styles.badge, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              <MaterialIcons name="star" size={12} color="#FFD700" />
+              <Text style={[styles.badgeText, { color: theme.colors.textDark }]}>{stars.toFixed(1)}</Text>
+            </View>
           </View>
 
-          {/* Match Button */}
-          {!matched && (
-            <TouchableOpacity
-              style={styles.matchButton}
-              onPress={() => handleMatch(userId)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.matchButtonText}>Eşleş</Text>
-            </TouchableOpacity>
-          )}
+          {/* University Badge */}
+          <View style={[styles.uniBadge, { backgroundColor: theme.colors.primaryLight + '20' }]}>
+            <MaterialIcons name="school" size={12} color={theme.colors.primary} />
+            <Text style={[styles.uniText, { color: theme.colors.primary }]}>{university}</Text>
+          </View>
         </View>
+      </TouchableOpacity>
+
+      {/* Map Preview */}
+      <View style={styles.mapContainer}>
+        <MapView
+          style={styles.map}
+          initialRegion={{
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          }}
+          scrollEnabled={false}
+          zoomEnabled={false}
+          rotateEnabled={false}
+          customMapStyle={[]} // Add map style if needed
+        >
+          <Polyline
+            coordinates={typeof route === 'string' ? JSON.parse(route) : route} // Handle both string/object
+            strokeWidth={3}
+            strokeColor={theme.colors.primary}
+          />
+          <Marker coordinate={userLocation} />
+        </MapView>
       </View>
-    </TouchableOpacity>
+
+      {/* Footer / Actions */}
+      <View style={[styles.footer, { borderTopColor: theme.colors.border }]}>
+        <Text style={[styles.bioText, { color: theme.colors.textLight }]} numberOfLines={2}>
+          {bio || t('no_bio')}
+        </Text>
+
+        {showMatchButton && (
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              { backgroundColor: isMatchedWithThisUser ? theme.colors.success : theme.colors.primary }
+            ]}
+            onPress={() => onMatchPress(userId)}
+            disabled={isMatchedWithThisUser} // Disable if already matched (or implement cancel logic here)
+          >
+            <Text style={styles.actionButtonText}>
+              {isMatchedWithThisUser ? t('already_matched') : t('match')}
+            </Text>
+            {isMatchedWithThisUser && <MaterialIcons name="check" size={16} color="white" style={{ marginLeft: 4 }} />}
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginVertical: 8,
-    marginHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
     overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
-  container: {
+  header: {
     flexDirection: 'row',
-    height: 180,
-  },
-  profileSection: {
-    flex: 1,
     padding: 12,
-    borderRightWidth: 1,
-    borderRightColor: '#f1f1f4',
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    marginBottom: 8,
+    alignItems: 'center',
   },
   avatarContainer: {
-    marginRight: 10,
+    marginRight: 12,
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f1f1f4',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
   userInfo: {
     flex: 1,
-    justifyContent: 'center',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
   userName: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000',
+    fontWeight: '700',
   },
-  userUniversity: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 2,
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 2,
   },
-  starsRow: {
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  uniBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  uniText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  mapContainer: {
+    height: 120,
+    width: '100%',
+  },
+  map: {
+    flex: 1,
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderTopWidth: 1,
+    justifyContent: 'space-between',
+  },
+  bioText: {
+    flex: 1,
+    fontSize: 12,
+    marginRight: 12,
+  },
+  actionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
   },
-  starsText: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 4,
-  },
-  userBio: {
-    fontSize: 12,
-    color: '#444',
-    lineHeight: 16,
-    flex: 1,
-  },
-  mapSection: {
-    width: '50%',
-    position: 'relative',
-  },
-  mapContainer: {
-    flex: 1,
-    overflow: 'hidden',
-  },
-  map: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  matchButton: {
-    position: 'absolute',
-    bottom: 12,
-    left: 12,
-    right: 12,
-    backgroundColor: '#4b39ef',
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  matchButtonText: {
+  actionButtonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 
-export default InterestedUser; 
+export default InterestedUser;

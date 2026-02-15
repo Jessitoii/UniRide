@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState } from 'react';
 import {
   View,
@@ -11,6 +9,7 @@ import {
   useColorScheme,
   Image,
   TouchableOpacity,
+  Dimensions,
 } from 'react-native';
 import {
   TextInput,
@@ -23,13 +22,13 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import DropDownPicker from 'react-native-dropdown-picker';
-import { lightTheme, darkTheme, ThemeType } from '../../styles/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { lightTheme, darkTheme, ThemeType } from '../../src/styles/theme';
 import api from '../../config/api';
 import universities from '../../constants/Universities';
 
+const { width, height } = Dimensions.get('window');
 
-
-// Interface for signup form data
 interface SignupFormData {
   name: string;
   surname: string;
@@ -43,17 +42,15 @@ interface SignupFormData {
 }
 
 const SignupScreen = () => {
-  // Theme and navigation setup
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const router = useRouter();
 
-  // State management
   const [step, setStep] = useState<number>(1);
   const [formData, setFormData] = useState<SignupFormData>({
     name: '',
     surname: '',
-    gender: '',
+    gender: 'male',
     birthDate: new Date(2000, 0, 1),
     university: '',
     faculty: '',
@@ -69,14 +66,11 @@ const SignupScreen = () => {
   const [university, setUniversity] = useState<string>('');
   const [faculty, setFaculty] = useState<string>('');
 
-  // State for dropdown open status
   const [universityOpen, setUniversityOpen] = useState<boolean>(false);
   const [facultyOpen, setFacultyOpen] = useState<boolean>(false);
 
-  // Calculate progress based on current step
   const progress = step / 3;
 
-  // Form validation functions
   const validateStep1 = (): boolean => {
     if (!formData.name || !formData.surname || !formData.gender) {
       setError('Lütfen tüm alanları doldurun');
@@ -117,13 +111,10 @@ const SignupScreen = () => {
     return true;
   };
 
-  // Form navigation handlers
   const handleNext = () => {
     setError('');
-
     if (step === 1 && !validateStep1()) return;
     if (step === 2 && !validateStep2()) return;
-
     setStep(step + 1);
   };
 
@@ -132,7 +123,6 @@ const SignupScreen = () => {
     setStep(step - 1);
   };
 
-  // Form submission handler
   const handleSubmit = async () => {
     if (!validateStep3()) return;
 
@@ -166,7 +156,6 @@ const SignupScreen = () => {
     }
   };
 
-  // Date picker handlers
   const handleDateChange = (event: any, selectedDate?: Date) => {
     const currentDate = selectedDate || formData.birthDate;
     setShowDatePicker(Platform.OS === 'ios');
@@ -181,10 +170,9 @@ const SignupScreen = () => {
     });
   };
 
-  // Form input handler
   const handleInputChange = (field: keyof SignupFormData, value: any) => {
     setFormData({ ...formData, [field]: value });
-    setError(''); // Clear error when user types
+    setError('');
   };
 
   const handleUniversityChange = (value: string) => {
@@ -200,49 +188,43 @@ const SignupScreen = () => {
     setError('');
   };
 
-  // Step 1: Personal Information
   const renderStep1 = () => (
-    <>
-      <View style={styles(theme).inputContainer}>
-        <MaterialIcons name="person" size={20} color={theme.colors.primary} style={styles(theme).inputIcon} />
-        <TextInput
-          mode="outlined"
-          label="Adınız"
-          value={formData.name}
-          onChangeText={(text) => handleInputChange('name', text)}
-          style={styles(theme).input}
-          outlineColor={theme.colors.border}
-          activeOutlineColor={theme.colors.primary}
-          contentStyle={{ color: theme.colors.textDark }}
-          theme={{ colors: { text: theme.colors.textDark, background: theme.colors.card } }}
-        />
-      </View>
+    <View style={styles(theme).stepContainer}>
+      <TextInput
+        mode="flat"
+        label="Adınız"
+        value={formData.name}
+        onChangeText={(text) => handleInputChange('name', text)}
+        style={styles(theme).input}
+        activeUnderlineColor={theme.colors.primary}
+        underlineColor="transparent"
+        textColor={theme.colors.textDark}
+        left={<TextInput.Icon icon="account" color={theme.colors.primary} />}
+      />
 
-      <View style={styles(theme).inputContainer}>
-        <MaterialIcons name="people" size={20} color={theme.colors.primary} style={styles(theme).inputIcon} />
-        <TextInput
-          mode="outlined"
-          label="Soyadınız"
-          value={formData.surname}
-          onChangeText={(text) => handleInputChange('surname', text)}
-          style={styles(theme).input}
-          outlineColor={theme.colors.border}
-          activeOutlineColor={theme.colors.primary}
-          contentStyle={{ color: theme.colors.textDark }}
-          theme={{ colors: { text: theme.colors.textDark, background: theme.colors.card } }}
-        />
-      </View>
+      <TextInput
+        mode="flat"
+        label="Soyadınız"
+        value={formData.surname}
+        onChangeText={(text) => handleInputChange('surname', text)}
+        style={styles(theme).input}
+        activeUnderlineColor={theme.colors.primary}
+        underlineColor="transparent"
+        textColor={theme.colors.textDark}
+        left={<TextInput.Icon icon="account-multiple" color={theme.colors.primary} />}
+      />
 
       <Text style={styles(theme).fieldLabel}>Cinsiyet</Text>
       <SegmentedButtons
         value={formData.gender}
         onValueChange={value => handleInputChange('gender', value)}
         buttons={[
-          { value: 'male', label: 'Erkek' },
-          { value: 'female', label: 'Kadın' },
-          { value: 'other', label: 'Diğer' },
+          { value: 'male', label: 'Erkek', icon: 'human-male' },
+          { value: 'female', label: 'Kadın', icon: 'human-female' },
+          { value: 'other', label: 'Diğer', icon: 'human' },
         ]}
         style={styles(theme).segmentedButton}
+        theme={{ colors: { secondaryContainer: theme.colors.primaryTransparent, onSecondaryContainer: theme.colors.primary } }}
       />
 
       <Text style={styles(theme).fieldLabel}>Doğum Tarihiniz</Text>
@@ -250,7 +232,7 @@ const SignupScreen = () => {
         style={styles(theme).datePickerButton}
         onPress={() => setShowDatePicker(true)}
       >
-        <MaterialIcons name="event" size={20} color={theme.colors.primary} style={styles(theme).datePickerIcon} />
+        <MaterialIcons name="event" size={22} color={theme.colors.primary} />
         <Text style={styles(theme).datePickerText}>
           {formatDate(formData.birthDate)}
         </Text>
@@ -270,45 +252,38 @@ const SignupScreen = () => {
       <Button
         mode="contained"
         onPress={handleNext}
-        style={styles(theme).button}
+        style={styles(theme).mainButton}
+        contentStyle={styles(theme).mainButtonContent}
         buttonColor={theme.colors.primary}
-        textColor={theme.colors.white}
       >
-        Devam Et
+        Sonraki Adım
       </Button>
-    </>
+    </View>
   );
 
-  // Step 2: University Information
   const renderStep2 = () => (
-    <View style={styles(theme).dropdownContainer}>
-      <Text style={styles(theme).fieldLabel}>Üniversite Bilgileri</Text>
-
-      <Text style={styles(theme).dropdownLabel}>Üniversiteniz</Text>
+    <View style={styles(theme).stepContainer}>
+      <Text style={styles(theme).fieldLabel}>Üniversite</Text>
       <DropDownPicker
         open={universityOpen}
         value={formData.university}
         items={universities.map((uni) => ({ label: uni.name, value: uni.name }))}
         setOpen={setUniversityOpen}
         onOpen={() => setFacultyOpen(false)}
-        setValue={(callback) => {
-          const newValue = callback(formData.university);
+        setValue={(val) => {
+          const newValue = typeof val === 'function' ? val(formData.university) : val;
           handleUniversityChange(newValue);
-          handleFacultyChange(''); // Reset faculty when university changes
-          setError('');
         }}
         style={styles(theme).dropdown}
         textStyle={styles(theme).dropdownText}
-        dropDownContainerStyle={styles(theme).dropdownContainer}
+        dropDownContainerStyle={styles(theme).dropdownListContainer}
         placeholderStyle={styles(theme).dropdownPlaceholder}
-        placeholder={university ? university : "Önce üniversite seçin"}
+        placeholder="Üniversite seçin"
         zIndex={3000}
-        zIndexInverse={1000}
+        listMode="SCROLLVIEW"
       />
 
-      <View style={{ height: 20 }} />
-
-      <Text style={styles(theme).dropdownLabel}>Fakülteniz</Text>
+      <Text style={[styles(theme).fieldLabel, { marginTop: 16 }]}>Fakülte</Text>
       <DropDownPicker
         open={facultyOpen}
         value={formData.faculty}
@@ -320,365 +295,346 @@ const SignupScreen = () => {
         }
         setOpen={(open) => {
           setFacultyOpen(open);
-          setUniversityOpen(false); // Only one dropdown open at a time
+          setUniversityOpen(false);
         }}
         onOpen={() => setUniversityOpen(false)}
-        setValue={(callback) => {
-          const newValue = callback(formData.faculty);
+        setValue={(val) => {
+          const newValue = typeof val === 'function' ? val(formData.faculty) : val;
           handleFacultyChange(newValue);
-          setError('');
         }}
         disabled={!university}
-        disabledStyle={styles(theme).disabledDropdown}
-        style={styles(theme).dropdown}
+        style={[styles(theme).dropdown, !university && styles(theme).disabledDropdown]}
         textStyle={styles(theme).dropdownText}
-        dropDownContainerStyle={styles(theme).dropdownContainer}
+        dropDownContainerStyle={styles(theme).dropdownListContainer}
         placeholderStyle={styles(theme).dropdownPlaceholder}
-        placeholder={university ? (faculty ? faculty : "Fakülte seçin") : "Önce üniversite seçin"}
-        zIndex={1}
+        placeholder={university ? "Fakülte seçin" : "Önce üniversite seçin"}
+        zIndex={1000}
+        listMode="SCROLLVIEW"
       />
 
-      <View style={styles(theme).buttonContainer}>
+      <View style={styles(theme).actions}>
         <Button
           mode="outlined"
-          onPress={() => {
-            setError('');
-            setUniversityOpen(false);
-            setFacultyOpen(false);
-            handleBack();
-          }}
-          style={[styles(theme).button, styles(theme).buttonOutline]}
+          onPress={handleBack}
+          style={styles(theme).secondaryButton}
           textColor={theme.colors.primary}
         >
           Geri
         </Button>
-
         <Button
           mode="contained"
           onPress={handleNext}
-          style={[styles(theme).button, styles(theme).buttonPrimary]}
+          style={styles(theme).primaryButton}
           buttonColor={theme.colors.primary}
-          textColor={theme.colors.white}
           disabled={!(university && faculty)}
         >
-          Devam Et
+          İlerle
         </Button>
       </View>
     </View>
   );
 
-  // Step 3: Account Information
   const renderStep3 = () => (
-    <>
-      <View style={styles(theme).inputContainer}>
-        <MaterialIcons name="email" size={20} color={theme.colors.primary} style={styles(theme).inputIcon} />
-        <TextInput
-          mode="outlined"
-          label="E-posta (.edu.tr)"
-          value={formData.email}
-          onChangeText={(text) => handleInputChange('email', text)}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          style={styles(theme).input}
-          outlineColor={theme.colors.border}
-          activeOutlineColor={theme.colors.primary}
-          contentStyle={{ color: theme.colors.textDark }}
-          theme={{ colors: { text: theme.colors.textDark, background: theme.colors.card } }}
-        />
-      </View>
+    <View style={styles(theme).stepContainer}>
+      <TextInput
+        mode="flat"
+        label="E-posta (.edu.tr)"
+        value={formData.email}
+        onChangeText={(text) => handleInputChange('email', text)}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        style={styles(theme).input}
+        activeUnderlineColor={theme.colors.primary}
+        underlineColor="transparent"
+        textColor={theme.colors.textDark}
+        left={<TextInput.Icon icon="email" color={theme.colors.primary} />}
+      />
 
-      <View style={styles(theme).inputContainer}>
-        <MaterialIcons name="lock" size={20} color={theme.colors.primary} style={styles(theme).inputIcon} />
-        <TextInput
-          mode="outlined"
-          label="Şifre"
-          value={formData.password}
-          onChangeText={(text) => handleInputChange('password', text)}
-          secureTextEntry={!passwordVisible}
-          style={styles(theme).input}
-          outlineColor={theme.colors.border}
-          activeOutlineColor={theme.colors.primary}
-          contentStyle={{ color: theme.colors.textDark }}
-          theme={{ colors: { text: theme.colors.textDark, background: theme.colors.card } }}
-          right={
-            <TextInput.Icon
-              icon={passwordVisible ? "eye-off" : "eye"}
-              onPress={() => setPasswordVisible(!passwordVisible)}
-              color={theme.colors.textLight}
-            />
-          }
-        />
-      </View>
+      <TextInput
+        mode="flat"
+        label="Şifre"
+        value={formData.password}
+        onChangeText={(text) => handleInputChange('password', text)}
+        secureTextEntry={!passwordVisible}
+        style={styles(theme).input}
+        activeUnderlineColor={theme.colors.primary}
+        underlineColor="transparent"
+        textColor={theme.colors.textDark}
+        left={<TextInput.Icon icon="lock" color={theme.colors.primary} />}
+        right={
+          <TextInput.Icon
+            icon={passwordVisible ? "eye-off" : "eye"}
+            onPress={() => setPasswordVisible(!passwordVisible)}
+            color={theme.colors.textLight}
+          />
+        }
+      />
 
-      <View style={styles(theme).inputContainer}>
-        <MaterialIcons name="lock" size={20} color={theme.colors.primary} style={styles(theme).inputIcon} />
-        <TextInput
-          mode="outlined"
-          label="Şifre Tekrar"
-          value={formData.confirmPassword}
-          onChangeText={(text) => handleInputChange('confirmPassword', text)}
-          secureTextEntry={!confirmPasswordVisible}
-          style={styles(theme).input}
-          outlineColor={theme.colors.border}
-          activeOutlineColor={theme.colors.primary}
-          contentStyle={{ color: theme.colors.textDark }}
-          theme={{ colors: { text: theme.colors.textDark, background: theme.colors.card } }}
-          right={
-            <TextInput.Icon
-              icon={confirmPasswordVisible ? "eye-off" : "eye"}
-              onPress={() => setConfirmPasswordVisible(!confirmPasswordVisible)}
-              color={theme.colors.textLight}
-            />
-          }
-        />
-      </View>
+      <TextInput
+        mode="flat"
+        label="Şifre Tekrar"
+        value={formData.confirmPassword}
+        onChangeText={(text) => handleInputChange('confirmPassword', text)}
+        secureTextEntry={!confirmPasswordVisible}
+        style={styles(theme).input}
+        activeUnderlineColor={theme.colors.primary}
+        underlineColor="transparent"
+        textColor={theme.colors.textDark}
+        left={<TextInput.Icon icon="lock-check" color={theme.colors.primary} />}
+        right={
+          <TextInput.Icon
+            icon={confirmPasswordVisible ? "eye-off" : "eye"}
+            onPress={() => setConfirmPasswordVisible(!confirmPasswordVisible)}
+            color={theme.colors.textLight}
+          />
+        }
+      />
 
-      <View style={styles(theme).buttonContainer}>
+      <View style={styles(theme).actions}>
         <Button
           mode="outlined"
           onPress={handleBack}
-          style={[styles(theme).button, styles(theme).buttonOutline]}
+          style={styles(theme).secondaryButton}
           textColor={theme.colors.primary}
         >
           Geri
         </Button>
-
         <Button
           mode="contained"
           onPress={handleSubmit}
           loading={loading}
           disabled={loading}
-          style={[styles(theme).button, styles(theme).buttonPrimary]}
+          style={styles(theme).primaryButton}
           buttonColor={theme.colors.primary}
-          textColor={theme.colors.white}
         >
-          Kayıt Ol
+          Tamamla
         </Button>
       </View>
-    </>
+    </View>
   );
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{ flex: 1 }}
-    >
-      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-      <ScrollView
-        contentContainerStyle={styles(theme).container}
-        keyboardShouldPersistTaps="handled"
+    <View style={styles(theme).mainContainer}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+      <LinearGradient
+        colors={[theme.colors.primary, theme.colors.secondary]}
+        style={styles(theme).backgroundGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      />
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
       >
-        <View style={styles(theme).logoContainer}>
-          <Image
-            source={require('../../assets/images/logo.png')}
-            style={styles(theme).logo}
-            resizeMode="contain"
-          />
-          <Text style={styles(theme).appName}>KampüsRoute</Text>
-          <Text style={styles(theme).tagline}>Güvenli ve ekonomik kampüs ulaşımı</Text>
-        </View>
-
-        <View style={styles(theme).formContainer}>
-          <Text style={styles(theme).title}>Hesap Oluştur</Text>
-
-          <View style={styles(theme).progressContainer}>
-            <Text style={styles(theme).stepText}>Adım {step}/3</Text>
-            <ProgressBar
-              progress={progress}
-              color={theme.colors.primary}
-              style={styles(theme).progressBar}
-            />
+        <ScrollView
+          contentContainerStyle={styles(theme).scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles(theme).header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles(theme).backIcon}>
+              <MaterialIcons name="arrow-back" size={24} color={theme.colors.white} />
+            </TouchableOpacity>
+            <Text style={styles(theme).headerTitle}>Hesap Oluştur</Text>
+            <View style={{ width: 24 }} />
           </View>
 
-          {error ? <Text style={styles(theme).errorText}>{error}</Text> : null}
+          <View style={styles(theme).card}>
+            <View style={styles(theme).progressSection}>
+              <Text style={styles(theme).stepIndicator}>Adım {step} / 3</Text>
+              <ProgressBar
+                progress={progress}
+                color={theme.colors.primary}
+                style={styles(theme).progressBar}
+              />
+            </View>
 
-          {step === 1 && renderStep1()}
-          {step === 2 && renderStep2()}
-          {step === 3 && renderStep3()}
-        </View>
+            {error ? (
+              <View style={styles(theme).errorBox}>
+                <MaterialIcons name="error-outline" size={16} color={theme.colors.error} />
+                <Text style={styles(theme).errorText}>{error}</Text>
+              </View>
+            ) : null}
 
-        <TouchableOpacity
-          // @ts-ignore
-          onPress={() => router.push('/auth/login')}
-          style={styles(theme).linkButton}
-        >
-          <Text style={styles(theme).linkText}>
-            Zaten hesabın var mı? <Text style={styles(theme).linkTextBold}>Giriş Yap</Text>
-          </Text>
-        </TouchableOpacity>
+            {step === 1 && renderStep1()}
+            {step === 2 && renderStep2()}
+            {step === 3 && renderStep3()}
+          </View>
 
-        <View style={styles(theme).footer}>
-          <Text style={styles(theme).footerText}>
-            © {new Date().getFullYear()} KampüsRoute - Tüm hakları saklıdır
-          </Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <TouchableOpacity
+            onPress={() => router.push('/auth/login')}
+            style={styles(theme).loginLink}
+          >
+            <Text style={styles(theme).loginText}>
+              Zaten hesabınız var mı? <Text style={styles(theme).loginTextBold}>Giriş Yap</Text>
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = (theme: ThemeType) => StyleSheet.create({
-  container: {
-    flexGrow: 1,
+  mainContainer: {
+    flex: 1,
     backgroundColor: theme.colors.background,
-    padding: theme.spacing.lg,
   },
-  logoContainer: {
+  backgroundGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 140,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingTop: 50,
+    paddingHorizontal: theme.spacing.xl,
+    paddingBottom: theme.spacing.xl,
+  },
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    justifyContent: 'space-between',
+    marginBottom: 30,
   },
-  logo: {
-    width: 80,
-    height: 80,
-    marginBottom: theme.spacing.sm,
-  },
-  appName: {
-    ...theme.textStyles.header1,
-    color: theme.colors.primary,
-    marginBottom: theme.spacing.xs,
-  },
-  tagline: {
-    ...theme.textStyles.body,
-    color: theme.colors.textLight,
-    textAlign: 'center',
-  },
-  formContainer: {
-    backgroundColor: theme.colors.card,
-    padding: theme.spacing.lg,
-    borderRadius: theme.borderRadius.lg,
-    ...theme.shadows.base,
-    marginBottom: theme.spacing.md,
-  },
-  title: {
+  headerTitle: {
     ...theme.textStyles.header2,
-    color: theme.colors.textDark,
-    textAlign: 'center',
-    marginBottom: theme.spacing.md,
+    color: theme.colors.white,
+    fontSize: 22,
   },
-  progressContainer: {
-    marginBottom: theme.spacing.md,
+  backIcon: {
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
-  stepText: {
-    ...theme.textStyles.bodySmall,
-    color: theme.colors.textLight,
+  card: {
+    backgroundColor: theme.colors.card,
+    borderRadius: 32,
+    padding: theme.spacing.xl,
+    ...theme.shadows.lg,
+  },
+  progressSection: {
+    marginBottom: theme.spacing.xl,
+  },
+  stepIndicator: {
+    ...theme.textStyles.caption,
+    fontWeight: '700',
+    color: theme.colors.primary,
+    marginBottom: 8,
     textAlign: 'center',
-    marginBottom: theme.spacing.xs,
   },
   progressBar: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: theme.colors.divider,
+    backgroundColor: theme.colors.surface,
   },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  inputIcon: {
-    marginRight: theme.spacing.sm,
-    alignSelf: 'center',
-    marginTop: 8,
+  stepContainer: {
+    gap: theme.spacing.md,
   },
   input: {
-    flex: 1,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 12,
+    height: 56,
+    overflow: 'hidden',
   },
   fieldLabel: {
-    ...theme.textStyles.bodySmall,
-    fontWeight: 'bold',
+    ...theme.textStyles.caption,
+    fontWeight: '700',
     color: theme.colors.textDark,
-    marginBottom: theme.spacing.xs,
-    marginTop: theme.spacing.sm,
+    marginTop: 8,
   },
   segmentedButton: {
-    marginBottom: theme.spacing.md,
+    marginTop: 4,
   },
   datePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.sm,
-    padding: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-  },
-  datePickerIcon: {
-    marginRight: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
   },
   datePickerText: {
     ...theme.textStyles.body,
     color: theme.colors.textDark,
   },
-  dropdownContainer: {
-    marginBottom: theme.spacing.md,
-  },
-  dropdownLabel: {
-    ...theme.textStyles.bodySmall,
-    fontWeight: 'bold',
-    color: theme.colors.textDark,
-    marginBottom: theme.spacing.xs,
-  },
   dropdown: {
     backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.sm,
+    borderColor: 'transparent',
+    borderRadius: 12,
+    minHeight: 56,
+  },
+  dropdownListContainer: {
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.divider,
+    borderRadius: 12,
+    ...theme.shadows.lg,
   },
   dropdownText: {
-    ...theme.textStyles.body,
+    ...theme.textStyles.bodySmall,
     color: theme.colors.textDark,
   },
   dropdownPlaceholder: {
-    ...theme.textStyles.body,
+    ...theme.textStyles.bodySmall,
     color: theme.colors.textLight,
   },
   disabledDropdown: {
-    opacity: 0.6,
-    backgroundColor: theme.colors.divider,
+    opacity: 0.5,
   },
-  button: {
-    marginTop: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-    height: 48,
-    justifyContent: 'center',
-    flex: 1,
-    marginHorizontal: theme.spacing.xs,
-  },
-  buttonOutline: {
-    borderColor: theme.colors.primary,
-    borderWidth: 1,
-  },
-  buttonPrimary: {
-    backgroundColor: theme.colors.primary,
-  },
-  buttonContainer: {
+  actions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: theme.spacing.lg,
+  },
+  secondaryButton: {
+    flex: 1,
+    borderRadius: 12,
+    borderColor: theme.colors.primary,
+    height: 50,
+    justifyContent: 'center',
+  },
+  primaryButton: {
+    flex: 2,
+    borderRadius: 12,
+    height: 50,
+    justifyContent: 'center',
+  },
+  mainButton: {
+    borderRadius: 16,
     marginTop: theme.spacing.md,
   },
-  linkButton: {
-    alignItems: 'center',
-    marginBottom: theme.spacing.lg,
+  mainButtonContent: {
+    height: 54,
   },
-  linkText: {
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.error + '10',
+    padding: 12,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: theme.colors.error,
+    fontSize: 13,
+    flex: 1,
+  },
+  loginLink: {
+    marginTop: 30,
+    alignItems: 'center',
+  },
+  loginText: {
     ...theme.textStyles.body,
     color: theme.colors.textDark,
   },
-  linkTextBold: {
-    fontWeight: 'bold',
+  loginTextBold: {
     color: theme.colors.primary,
-  },
-  errorText: {
-    ...theme.textStyles.bodySmall,
-    color: theme.colors.error,
-    textAlign: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  footer: {
-    alignItems: 'center',
-  },
-  footerText: {
-    ...theme.textStyles.bodySmall,
-    color: theme.colors.textLight,
+    fontWeight: '700',
   },
 });
 

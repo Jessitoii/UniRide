@@ -1,89 +1,104 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, StatusBar, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { BASE_URL } from '@/env';
 import { MaterialIcons } from '@expo/vector-icons';
-import { lightTheme as theme } from '@/styles/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { ThemeType } from '@/styles/theme';
+import { useTranslation } from 'react-i18next';
 
 export default function EditProfileScreen() {
+  const { t } = useTranslation();
+  const { theme } = useTheme();
+  const router = useRouter();
+
   const [name, setName] = useState('');
   const [university, setUniversity] = useState('');
   const [faculty, setFaculty] = useState('');
   const [bio, setBio] = useState('');
   const [gender, setGender] = useState('');
   const [profilePhoto, setProfilePhoto] = useState('');
-  const [id, setId] = useState('');
-
-  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-
-        const response = await fetch(`${BASE_URL}/api/users/profile`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setName(data.name);
-          setUniversity(data.university);
-          setFaculty(data.faculty);
-          setBio(data.bio);
-          setGender(data.gender);
-          setId(data.id);
-        } else {
-          console.error('Error fetching profile:', await response.json());
-        }
-      } catch (error) {
-        console.error('Error fetching profile:', error);
-      }
-    };
-
     fetchProfile();
   }, []);
 
-  const handleSaveChanges = async () => {
-    const token = await AsyncStorage.getItem('token');
+  const fetchProfile = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(`${BASE_URL}/api/users/profile`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('university', university);
-    formData.append('faculty', faculty);
-    formData.append('bio', bio);
-    formData.append('gender', gender);
-
-    if (profilePhoto) {
-      const photo = {
-        uri: profilePhoto,
-        type: 'image/jpeg',
-        name: 'profile.jpg',
-      };
-      formData.append('profilePhoto', photo as any);
+      if (response.ok) {
+        const data = await response.json();
+        setName(data.name || '');
+        setUniversity(data.university || '');
+        setFaculty(data.faculty || '');
+        setBio(data.bio || '');
+        setGender(data.gender || '');
+        // If profile photo URL exists, set it
+        if (data.id) {
+          // Check if photo exists via API or just construct URL?
+          // Using existing logic from other files:
+          setProfilePhoto(`${BASE_URL}/api/users/profilePhoto/${data.id}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const response = await fetch(`${BASE_URL}/api/users/profile`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      },
-      body: formData
-    });
+  const handleSaveChanges = async () => {
+    setSaving(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('university', university);
+      formData.append('faculty', faculty);
+      formData.append('bio', bio);
+      formData.append('gender', gender);
 
-    if (response.ok) {
-      console.log('Profile updated successfully');
-      router.push('/(drawer)/ProfileScreen');
-    } else {
-      console.error('Error updating profile:', await response.json());
+      if (profilePhoto && !profilePhoto.startsWith('http')) {
+        const photo = {
+          uri: profilePhoto,
+          type: 'image/jpeg',
+          name: 'profile.jpg',
+        };
+        formData.append('profilePhoto', photo as any);
+      }
+
+      const response = await fetch(`${BASE_URL}/api/users/profile`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (response.ok) {
+        router.back();
+      } else {
+        console.error(t('error_update_profile'));
+      }
+    } catch (error) {
+      console.error(t('error_update_profile'), error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -92,7 +107,7 @@ export default function EditProfileScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 1,
+      quality: 0.8,
     });
 
     if (!result.canceled) {
@@ -100,92 +115,127 @@ export default function EditProfileScreen() {
     }
   };
 
+  const getInputStyle = (field: string) => [
+    styles(theme).input,
+    focusedInput === field && styles(theme).inputFocused
+  ];
+
+  if (loading) {
+    return (
+      <View style={styles(theme).centerContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles(theme).container} showsVerticalScrollIndicator={false}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <MaterialIcons name="arrow-back" size={24} color="#000" />
+      <View style={styles(theme).header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles(theme).backButton}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons name="arrow-back" size={24} color={theme.colors.textDark} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profili Düzenle</Text>
+        <Text style={styles(theme).headerTitle}>{t('edit_profile_title')}</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      {/* Profile Photo */}
-      <View style={styles.avatarSection}>
-        <TouchableOpacity onPress={handleProfilePhotoChange} style={styles.avatarContainer}>
+      {/* Avatar Section */}
+      <View style={styles(theme).avatarSection}>
+        <TouchableOpacity
+          onPress={handleProfilePhotoChange}
+          style={styles(theme).avatarContainer}
+          activeOpacity={0.8}
+        >
           {profilePhoto ? (
-            <Image source={{ uri: profilePhoto }} style={styles.avatar} />
+            <Image source={{ uri: profilePhoto }} style={styles(theme).avatar} />
           ) : (
-            <View style={styles.avatarPlaceholder}>
-              <MaterialIcons name="person" size={60} color="#ccc" />
+            <View style={styles(theme).avatarPlaceholder}>
+              <MaterialIcons name="person" size={48} color={theme.colors.textLight} />
             </View>
           )}
-          <View style={styles.editIconContainer}>
-            <MaterialIcons name="photo-camera" size={20} color="#fff" />
+          <View style={styles(theme).editIconContainer}>
+            <MaterialIcons name="camera-alt" size={18} color="white" />
           </View>
         </TouchableOpacity>
-        <Text style={styles.photoHint}>Fotoğrafı değiştir</Text>
+        <Text style={styles(theme).photoHint}>{t('change_photo')}</Text>
       </View>
 
       {/* Form Fields */}
-      <View style={styles.formSection}>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Tam Adınız</Text>
+      <View style={styles(theme).formSection}>
+        <View style={styles(theme).inputGroup}>
+          <Text style={styles(theme).label}>{t('full_name')}</Text>
           <TextInput
-            style={styles.input}
+            style={getInputStyle('name')}
             value={name}
             onChangeText={setName}
-            placeholder="Tam Adınız"
+            onFocus={() => setFocusedInput('name')}
+            onBlur={() => setFocusedInput(null)}
+            placeholder={t('full_name_placeholder')}
+            placeholderTextColor={theme.colors.textLight}
           />
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Üniversitesi</Text>
+        <View style={styles(theme).inputGroup}>
+          <Text style={styles(theme).label}>{t('university')}</Text>
           <TextInput
-            style={styles.input}
+            style={getInputStyle('university')}
             value={university}
             onChangeText={setUniversity}
-            placeholder="Your university"
+            onFocus={() => setFocusedInput('university')}
+            onBlur={() => setFocusedInput(null)}
+            placeholder={t('university_placeholder')}
+            placeholderTextColor={theme.colors.textLight}
           />
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Fakültesi</Text>
+        <View style={styles(theme).inputGroup}>
+          <Text style={styles(theme).label}>{t('faculty')}</Text>
           <TextInput
-            style={styles.input}
+            style={getInputStyle('faculty')}
             value={faculty}
             onChangeText={setFaculty}
-            placeholder="Fakültesi"
+            onFocus={() => setFocusedInput('faculty')}
+            onBlur={() => setFocusedInput(null)}
+            placeholder={t('faculty_placeholder')}
+            placeholderTextColor={theme.colors.textLight}
           />
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Biyografi</Text>
+        <View style={styles(theme).inputGroup}>
+          <Text style={styles(theme).label}>{t('bio')}</Text>
           <TextInput
-            style={[styles.input, styles.bioInput]}
+            style={[getInputStyle('bio'), styles(theme).bioInput]}
             value={bio}
             onChangeText={setBio}
-            placeholder="Tell us about yourself"
+            onFocus={() => setFocusedInput('bio')}
+            onBlur={() => setFocusedInput(null)}
+            placeholder={t('bio_placeholder')}
+            placeholderTextColor={theme.colors.textLight}
             multiline
-            numberOfLines={4}
+            textAlignVertical="top"
           />
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Cinsiyet</Text>
-          <View style={styles.genderContainer}>
-            {['Erkek', 'Kadın', 'Diğer'].map((option) => (
+        <View style={styles(theme).inputGroup}>
+          <Text style={styles(theme).label}>{t('gender')}</Text>
+          <View style={styles(theme).genderContainer}>
+            {[t('male'), t('female'), t('prefer_not_to_say')].map((option) => (
               <TouchableOpacity
                 key={option}
                 style={[
-                  styles.genderOption,
-                  gender === option && styles.genderOptionSelected
+                  styles(theme).genderOption,
+                  gender === option && styles(theme).genderOptionSelected
                 ]}
                 onPress={() => setGender(option)}
+                activeOpacity={0.7}
               >
                 <Text style={[
-                  styles.genderText,
-                  gender === option && styles.genderTextSelected
+                  styles(theme).genderText,
+                  gender === option && styles(theme).genderTextSelected
                 ]}>
                   {option}
                 </Text>
@@ -196,62 +246,72 @@ export default function EditProfileScreen() {
       </View>
 
       {/* Action Buttons */}
-      <View style={styles.buttonContainer}>
+      <View style={styles(theme).footer}>
         <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.cancelButtonText}>İptal</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.saveButton}
+          style={styles(theme).saveButton}
           onPress={handleSaveChanges}
+          disabled={saving}
+          activeOpacity={0.8}
         >
-          <Text style={styles.saveButtonText}>Kaydet</Text>
+          {saving ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text style={styles(theme).saveButtonText}>{t('save_changes')}</Text>
+          )}
         </TouchableOpacity>
       </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (theme: ThemeType) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background,
+  },
+  centerContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 20,
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing['4xl'],
+    paddingBottom: theme.spacing.md,
+    backgroundColor: theme.colors.background,
+  },
+  backButton: {
+    padding: theme.spacing.xs,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginLeft: 20,
-    color: '#000',
+    ...theme.textStyles.header3,
+    color: theme.colors.textDark,
   },
   avatarSection: {
     alignItems: 'center',
-    marginVertical: 20,
+    marginVertical: theme.spacing.xl,
   },
   avatarContainer: {
     position: 'relative',
-    width: 100,
-    height: 100,
+    padding: 4,
+    backgroundColor: theme.colors.card,
+    borderRadius: 75,
+    ...theme.shadows.sm,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
   },
   avatarPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#f1f1f4',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: theme.colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -259,94 +319,90 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: '#4b39ef',
-    borderRadius: 15,
-    width: 30,
-    height: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+    padding: 10,
+    borderRadius: 20,
+    borderWidth: 3,
+    borderColor: theme.colors.background,
   },
   photoHint: {
-    marginTop: 10,
-    fontSize: 14,
-    color: '#666',
+    ...theme.textStyles.caption,
+    color: theme.colors.primary,
+    marginTop: theme.spacing.md,
+    fontWeight: '600',
   },
   formSection: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingHorizontal: theme.spacing.lg,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: theme.spacing.lg,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 6,
-    color: '#444',
+    ...theme.textStyles.bodySmall,
+    color: theme.colors.textDark,
+    marginBottom: theme.spacing.sm,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   input: {
-    backgroundColor: '#f5f5f5',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    fontSize: 16,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.textStyles.body,
+  },
+  inputFocused: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.surface,
   },
   bioInput: {
-    height: 100,
+    minHeight: 120,
     textAlignVertical: 'top',
-    paddingTop: 12,
   },
   genderContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
   },
   genderOption: {
     flex: 1,
-    paddingVertical: 12,
-    marginHorizontal: 4,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.lg,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   genderOptionSelected: {
-    backgroundColor: '#4b39ef',
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
   },
   genderText: {
-    color: '#444',
+    ...theme.textStyles.caption,
+    color: theme.colors.text,
     fontWeight: '500',
   },
   genderTextSelected: {
-    color: '#fff',
+    color: 'white',
+    fontWeight: 'bold',
   },
-  buttonContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 30,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 15,
-    marginRight: 6,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#444',
+  footer: {
+    padding: theme.spacing.lg,
+    paddingBottom: theme.spacing['4xl'],
   },
   saveButton: {
-    flex: 1,
-    paddingVertical: 15,
-    marginLeft: 6,
-    backgroundColor: '#4b39ef',
-    borderRadius: 8,
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.spacing.lg,
+    borderRadius: theme.borderRadius.full,
     alignItems: 'center',
+    ...theme.shadows.md,
   },
   saveButtonText: {
+    ...theme.textStyles.button,
+    color: 'white',
     fontSize: 16,
-    fontWeight: '500',
-    color: '#fff',
   },
-}); 
+});

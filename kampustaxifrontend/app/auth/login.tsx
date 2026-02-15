@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
@@ -10,38 +8,29 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
-  useColorScheme
+  useColorScheme,
+  Dimensions
 } from 'react-native';
 import { TextInput, Button, Text } from 'react-native-paper';
 import { useRouter } from 'expo-router';
-import { StackNavigationProp } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
-import { lightTheme, darkTheme, ThemeType } from '../../styles/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { lightTheme, darkTheme, ThemeType } from '../../src/styles/theme';
 import api from '../../config/api';
 
-// Define navigation types
-type RootStackParamList = {
-  LoginScreen: undefined;
-  Signup: undefined;
-  Home: { screen: string };
-};
+const { width } = Dimensions.get('window');
 
-type NavigationProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
-
-// Interface for form data
 interface LoginFormData {
   email: string;
   password: string;
 }
 
 export default function LoginScreen() {
-  // Theme and navigation setup
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const router = useRouter();
 
-  // State management
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
@@ -50,15 +39,11 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState<boolean>(false);
   const [passwordVisible, setPasswordVisible] = useState<boolean>(false);
 
-  // Check if user is already authenticated
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const token = await AsyncStorage.getItem('token');
         if (token) {
-          // If authenticated, redirect to profile
-          // Navigate to Home (bubbles to Drawer)
-          // @ts-ignore
           router.replace('/(drawer)/(tabs)/PassengerScreen');
         }
       } catch (error) {
@@ -68,15 +53,12 @@ export default function LoginScreen() {
     checkAuth();
   }, []);
 
-  // Form input handlers
   const handleInputChange = (field: keyof LoginFormData, value: string) => {
     setFormData({ ...formData, [field]: value });
-    setError(''); // Clear error when user types
+    setError('');
   };
 
-  // Handle login submission
   const handleLogin = async () => {
-    // Validate form data
     if (!formData.email || !formData.password) {
       setError('Lütfen tüm alanları doldurun');
       return;
@@ -96,12 +78,7 @@ export default function LoginScreen() {
       if (response.error) {
         setError(response.error);
       } else if (response.data?.token) {
-        // Store token
         await AsyncStorage.setItem('token', response.data.token);
-
-        // Navigate to main app
-        // Navigate to Home
-        // @ts-ignore
         router.replace('/(drawer)/(tabs)/PassengerScreen');
       }
     } catch (error) {
@@ -113,186 +90,232 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{ flex: 1 }}
-    >
-      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-      <ScrollView
-        contentContainerStyle={styles(theme).container}
-        keyboardShouldPersistTaps="handled"
+    <View style={styles(theme).mainContainer}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+      {/* Background Gradient */}
+      <LinearGradient
+        colors={[theme.colors.primary, theme.colors.secondary]}
+        style={styles(theme).backgroundGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
       >
-        <View style={styles(theme).logoContainer}>
-          <Image
-            source={require('../../assets/images/logo.png')}
-            style={styles(theme).logo}
-            resizeMode="contain"
-          />
-          <Text style={styles(theme).appName}>KampüsRoute</Text>
-          <Text style={styles(theme).tagline}>Güvenli ve ekonomik kampüs ulaşımı</Text>
-        </View>
-
-        <View style={styles(theme).formContainer}>
-          <Text style={styles(theme).title}>Giriş Yap</Text>
-
-          <View style={styles(theme).inputContainer}>
-            <MaterialIcons name="email" size={20} color={theme.colors.primary} style={styles(theme).inputIcon} />
-            <TextInput
-              mode="outlined"
-              label="Email (edu.tr)"
-              value={formData.email}
-              onChangeText={(text) => handleInputChange('email', text)}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              style={styles(theme).input}
-              outlineColor={theme.colors.border}
-              activeOutlineColor={theme.colors.primary}
-              contentStyle={{ color: theme.colors.textDark }}
-              theme={{ colors: { text: theme.colors.textDark, background: theme.colors.card } }}
-            />
+        <ScrollView
+          contentContainerStyle={styles(theme).scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles(theme).headerSection}>
+            <View style={styles(theme).logoWrapper}>
+              <MaterialIcons name="local-taxi" size={48} color={theme.colors.white} />
+            </View>
+            <Text style={styles(theme).appName}>KampüsRoute</Text>
+            <Text style={styles(theme).tagline}>Geleceğin kampüs ulaşımı</Text>
           </View>
 
-          <View style={styles(theme).inputContainer}>
-            <MaterialIcons name="lock" size={20} color={theme.colors.primary} style={styles(theme).inputIcon} />
-            <TextInput
-              mode="outlined"
-              label="Şifre"
-              value={formData.password}
-              onChangeText={(text) => handleInputChange('password', text)}
-              secureTextEntry={!passwordVisible}
-              style={styles(theme).input}
-              outlineColor={theme.colors.border}
-              activeOutlineColor={theme.colors.primary}
-              contentStyle={{ color: theme.colors.textDark }}
-              theme={{ colors: { text: theme.colors.textDark, background: theme.colors.card } }}
-              right={
-                <TextInput.Icon
-                  icon={passwordVisible ? "eye-off" : "eye"}
-                  onPress={() => setPasswordVisible(!passwordVisible)}
-                  color={theme.colors.textLight}
-                />
-              }
-            />
+          <View style={styles(theme).card}>
+            <Text style={styles(theme).title}>Hoş Geldiniz</Text>
+            <Text style={styles(theme).subtitle}>Hesabınıza giriş yapın</Text>
+
+            <View style={styles(theme).form}>
+              <TextInput
+                mode="flat"
+                label="Kampüs E-postası"
+                value={formData.email}
+                onChangeText={(text) => handleInputChange('email', text)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={styles(theme).input}
+                activeUnderlineColor={theme.colors.primary}
+                underlineColor="transparent"
+                textColor={theme.colors.textDark}
+                placeholder="örnek@ogr.uü.edu.tr"
+                left={<TextInput.Icon icon="email" color={theme.colors.primary} />}
+              />
+
+              <TextInput
+                mode="flat"
+                label="Şifre"
+                value={formData.password}
+                onChangeText={(text) => handleInputChange('password', text)}
+                secureTextEntry={!passwordVisible}
+                style={styles(theme).input}
+                activeUnderlineColor={theme.colors.primary}
+                underlineColor="transparent"
+                textColor={theme.colors.textDark}
+                left={<TextInput.Icon icon="lock" color={theme.colors.primary} />}
+                right={
+                  <TextInput.Icon
+                    icon={passwordVisible ? "eye-off" : "eye"}
+                    onPress={() => setPasswordVisible(!passwordVisible)}
+                    color={theme.colors.textLight}
+                  />
+                }
+              />
+
+              {error ? (
+                <View style={styles(theme).errorContainer}>
+                  <MaterialIcons name="error-outline" size={16} color={theme.colors.error} />
+                  <Text style={styles(theme).errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              <Button
+                mode="contained"
+                onPress={handleLogin}
+                loading={loading}
+                disabled={loading}
+                style={styles(theme).loginButton}
+                contentStyle={styles(theme).loginButtonContent}
+                buttonColor={theme.colors.primary}
+              >
+                Giriş Yap
+              </Button>
+
+              <TouchableOpacity
+                onPress={() => router.push('/auth/signup')}
+                style={styles(theme).signupLink}
+              >
+                <Text style={styles(theme).signupText}>
+                  Henüz hesabınız yok mu? <Text style={styles(theme).signupTextBold}>Üye Olun</Text>
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {error ? <Text style={styles(theme).errorText}>{error}</Text> : null}
-
-          <Button
-            mode="contained"
-            onPress={handleLogin}
-            loading={loading}
-            disabled={loading}
-            style={styles(theme).button}
-            buttonColor={theme.colors.primary}
-            textColor={theme.colors.white}
-          >
-            Giriş Yap
-          </Button>
-
-          <TouchableOpacity
-            onPress={() => {
-              router.push('/auth/signup');
-            }}
-            style={styles(theme).linkButton}
-          >
-            <Text style={styles(theme).linkText}>
-              Hesabın yok mu? <Text style={styles(theme).linkTextBold}>Üye Ol</Text>
+          <View style={styles(theme).footer}>
+            <Text style={styles(theme).footerText}>
+              By continuing, you agree to our Terms and Conditions
             </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles(theme).footer}>
-          <Text style={styles(theme).footerText}>
-            © 2025 KampüsRoute - Tüm hakları saklıdır
-          </Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = (theme: ThemeType) => StyleSheet.create({
-  container: {
-    flexGrow: 1,
+  mainContainer: {
+    flex: 1,
     backgroundColor: theme.colors.background,
-    justifyContent: 'center',
-    padding: theme.spacing.lg,
   },
-  logoContainer: {
+  backgroundGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '45%',
+    borderBottomLeftRadius: 60,
+    borderBottomRightRadius: 60,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingTop: 60,
+    paddingHorizontal: theme.spacing.xl,
+    paddingBottom: theme.spacing.xl,
+  },
+  headerSection: {
     alignItems: 'center',
-    marginBottom: theme.spacing.xl,
+    marginBottom: theme.spacing['2xl'],
   },
-  logo: {
-    width: 100,
-    height: 100,
-    marginBottom: theme.spacing.sm,
+  logoWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
   },
   appName: {
     ...theme.textStyles.header1,
-    color: theme.colors.primary,
-    marginBottom: theme.spacing.xs,
+    color: theme.colors.white,
+    fontSize: 32,
+    letterSpacing: 0.5,
   },
   tagline: {
     ...theme.textStyles.body,
-    color: theme.colors.textLight,
-    textAlign: 'center',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 4,
   },
-  formContainer: {
+  card: {
     backgroundColor: theme.colors.card,
-    padding: theme.spacing.lg,
-    borderRadius: theme.borderRadius.lg,
-    ...theme.shadows.base,
+    borderRadius: 32,
+    padding: theme.spacing.xl,
+    ...theme.shadows.lg,
+    marginTop: theme.spacing.md,
   },
   title: {
     ...theme.textStyles.header2,
     color: theme.colors.textDark,
     textAlign: 'center',
-    marginBottom: theme.spacing.lg,
+    fontSize: 26,
   },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
+  subtitle: {
+    ...theme.textStyles.bodySmall,
+    color: theme.colors.textLight,
+    textAlign: 'center',
+    marginBottom: theme.spacing.xl,
   },
-  inputIcon: {
-    marginRight: theme.spacing.sm,
-    alignSelf: 'center',
-    marginTop: 8,
+  form: {
+    gap: theme.spacing.md,
   },
   input: {
-    flex: 1,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.surface,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    height: 60,
+    overflow: 'hidden',
   },
-  button: {
-    marginTop: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-    height: 48,
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: theme.colors.error + '10',
+    padding: theme.spacing.sm,
+    borderRadius: 8,
+    gap: 8,
   },
-  linkButton: {
+  errorText: {
+    color: theme.colors.error,
+    fontSize: 13,
+  },
+  loginButton: {
+    borderRadius: 16,
+    marginTop: theme.spacing.md,
+    ...theme.shadows.base,
+  },
+  loginButtonContent: {
+    height: 54,
+  },
+  signupLink: {
     marginTop: theme.spacing.md,
     alignItems: 'center',
   },
-  linkText: {
-    ...theme.textStyles.body,
-    color: theme.colors.textDark,
-  },
-  linkTextBold: {
-    fontWeight: 'bold',
-    color: theme.colors.primary,
-  },
-  errorText: {
+  signupText: {
     ...theme.textStyles.bodySmall,
-    color: theme.colors.error,
-    textAlign: 'center',
-    marginBottom: theme.spacing.sm,
+    color: theme.colors.textLight,
+  },
+  signupTextBold: {
+    color: theme.colors.primary,
+    fontWeight: '700',
   },
   footer: {
-    marginTop: theme.spacing.xl,
+    marginTop: 'auto',
+    paddingTop: theme.spacing.xl,
     alignItems: 'center',
   },
   footerText: {
-    ...theme.textStyles.bodySmall,
+    ...theme.textStyles.caption,
     color: theme.colors.textLight,
+    textAlign: 'center',
+    opacity: 0.7,
   },
 }); 

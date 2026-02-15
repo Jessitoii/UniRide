@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, Modal, Text, StatusBar, SafeAreaView, Alert, Image } from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet, Modal, Text, StatusBar, SafeAreaView, Alert, Image, FlatList } from 'react-native';
 import MapView, { Circle, Marker } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -9,6 +9,8 @@ import { ActivityIndicator } from 'react-native-paper';
 import { BASE_URL, GOOGLE_MAPS_API_KEY } from '@/env';
 import * as Location from 'expo-location';
 import { lightTheme, ThemeType } from '../../styles/theme';
+import { useTranslation } from 'react-i18next';
+import { useShortcuts } from '@/src/hooks/useShortcuts';
 
 // Define types for suggestions
 interface Suggestion {
@@ -40,6 +42,8 @@ export default function SearchLocation() {
   const [region, setRegion] = useState<any>(null);
 
   const router = useRouter();
+  const { t } = useTranslation();
+  const { shortcuts, loading: shortcutsLoading } = useShortcuts();
 
 
   const searchUniversities = (query: string) => {
@@ -203,7 +207,7 @@ export default function SearchLocation() {
           </View>
           <TextInput
             style={styles.locationInput}
-            placeholder="Başlangıç"
+            placeholder={t('start_location_placeholder')}
             value={startLocation}
             onChangeText={setStartLocation}
             onFocus={() => {
@@ -226,7 +230,7 @@ export default function SearchLocation() {
           </View>
           <TextInput
             style={styles.locationInput}
-            placeholder="Hedef Üniversite"
+            placeholder={t('destination_university_placeholder')}
             value={destinationUniversity}
             onChangeText={setDestinationUniversity}
             onFocus={() => {
@@ -247,7 +251,7 @@ export default function SearchLocation() {
           </View>
           <TextInput
             style={styles.locationInput}
-            placeholder="Hedef Fakülte"
+            placeholder={t('destination_faculty_placeholder')}
             value={destinationFaculty}
             onChangeText={setDestinationFaculty}
             onFocus={() => {
@@ -261,7 +265,7 @@ export default function SearchLocation() {
               }
               else {
                 //user can not write anything from here
-                Alert.alert('Hata', 'Lütfen bir üniversite seçin');
+                Alert.alert(t('error'), t('select_university_error'));
                 return;
               }
             }}
@@ -277,75 +281,111 @@ export default function SearchLocation() {
           )
         }
 
-        {universitySuggestions && inDestinationUniversity && (
+        {/* Shortcuts Chips for Start Location */}
+        {inStartLocation && !startLocation && shortcuts.length > 0 && (
+          <View style={styles.chipsContainer}>
+            <FlatList
+              horizontal
+              data={shortcuts}
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ paddingBottom: 10 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.shortcutChip}
+                  onPress={() => {
+                    setStartLocation(item.address);
+                    setSelectedSuggestion({ latitude: item.latitude, longitude: item.longitude });
+                  }}
+                >
+                  <MaterialIcons
+                    name={item.label.toLowerCase().includes('home') ? 'home' : item.label.toLowerCase().includes('work') ? 'work' : 'place'}
+                    size={18}
+                    color="#4b39ef"
+                  />
+                  <Text style={styles.shortcutChipText}>{item.label}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        )}
+
+        {inDestinationUniversity && universitySuggestions.length > 0 ? (
           universitySuggestions.map((suggestion) => (
-            <TouchableOpacity style={styles.shortcutButton} onPress={() => {
-              setSelectedUniversity(suggestion.label);
-              setDestinationUniversity(suggestion.label);
-            }}>
+            <TouchableOpacity
+              key={`uni-${suggestion.value}`}
+              style={styles.shortcutButton}
+              onPress={() => {
+                setSelectedUniversity(suggestion.label);
+                setDestinationUniversity(suggestion.label);
+              }}
+            >
               <View style={styles.shortcutIcon}>
                 <MaterialIcons name="school" size={24} color="#e94e77" />
               </View>
               <Text style={styles.shortcutText}>{suggestion.label}</Text>
             </TouchableOpacity>
           ))
-        )}
+        ) : null}
 
-        {facultySuggestions && inDestinationFaculty && (
+        {inDestinationFaculty && facultySuggestions.length > 0 ? (
           facultySuggestions.map((suggestion) => (
-            <TouchableOpacity style={styles.shortcutButton} onPress={() => {
-              setSelectedFaculty(suggestion.label);
-              setDestinationFaculty(suggestion.label);
-            }}>
+            <TouchableOpacity
+              key={`faculty-${suggestion.value}`}
+              style={styles.shortcutButton}
+              onPress={() => {
+                setSelectedFaculty(suggestion.label);
+                setDestinationFaculty(suggestion.label);
+              }}
+            >
               <View style={styles.shortcutIcon}>
                 <MaterialIcons name="business" size={24} color="#007bff" />
               </View>
               <Text style={styles.shortcutText}>{suggestion.label}</Text>
             </TouchableOpacity>
           ))
-        )}
+        ) : null}
 
 
-        {inStartLocation && suggestions && suggestions.length > 0 && suggestions.map((suggestion) => (
-          <TouchableOpacity style={styles.shortcutButton} onPress={async () => {
-            setIsLoading(true);
-            try {
-              const response = await fetch(
-                `https://maps.googleapis.com/maps/api/place/details/json?place_id=${suggestion.place_id}&key=${GOOGLE_MAPS_API_KEY}`
-              );
-              const data = await response.json();
-              if (data.status === 'OK') {
-                const location = data.result.geometry.location;
-                setSelectedSuggestion({ latitude: location.lat, longitude: location.lng });
-                setStartLocation(data.result.formatted_address);
-              }
-            } catch (error) {
-              console.error('Error setting start location:', error);
-            } finally {
-              setIsLoading(false);
-            }
-          }}>
-            <View style={styles.shortcutIcon}>
-              <MaterialIcons name="location-on" size={24} color="#4b39ef" />
-            </View>
-            <Text style={styles.shortcutText}>{suggestion.description}</Text>
-          </TouchableOpacity>
-        ))
-        }
-        <TouchableOpacity style={styles.shortcutButton}>
-          <View style={styles.shortcutIcon}>
-            <MaterialIcons name="home" size={24} color="#4b39ef" />
-          </View>
-          <Text style={styles.shortcutText}>Evimi Seç</Text>
-        </TouchableOpacity>
+        {inStartLocation && suggestions && suggestions.length > 0 ? (
+          suggestions.map((suggestion) => (
+            <TouchableOpacity
+              key={`suggestion-${suggestion.place_id}`}
+              style={styles.shortcutButton}
+              onPress={async () => {
+                setIsLoading(true);
+                try {
+                  const response = await fetch(
+                    `https://maps.googleapis.com/maps/api/place/details/json?place_id=${suggestion.place_id}&key=${GOOGLE_MAPS_API_KEY}`
+                  );
+                  const data = await response.json();
+                  if (data.status === 'OK') {
+                    const location = data.result.geometry.location;
+                    setSelectedSuggestion({ latitude: location.lat, longitude: location.lng });
+                    setStartLocation(data.result.formatted_address);
+                  }
+                } catch (error) {
+                  console.error('Error setting start location:', error);
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+            >
+              <View style={styles.shortcutIcon}>
+                <MaterialIcons name="location-on" size={24} color="#4b39ef" />
+              </View>
+              <Text style={styles.shortcutText}>{suggestion.description}</Text>
+            </TouchableOpacity>
+          ))
+        ) : null}
       </View>
 
       <TouchableOpacity style={styles.button} onPress={() => setMapVisible(true)}>
-        <Text style={styles.buttonText}>Haritada Üzerinden Seç</Text>
+        <Text style={styles.buttonText}>{t('select_on_map')}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.button} onPress={handleDoneButtonPress}>
-        <Text style={styles.buttonText}>Tamamla</Text>
+        <Text style={styles.buttonText}>{t('complete')}</Text>
       </TouchableOpacity>
 
       {/* Map Modal */}
@@ -362,20 +402,18 @@ export default function SearchLocation() {
             }}
             onRegionChange={setRegion}
           >
-            {selectedSuggestion?.latitude && selectedSuggestion?.longitude && (
+            {selectedSuggestion?.latitude != null && selectedSuggestion?.longitude != null ? (
               <Marker
                 coordinate={{ latitude: selectedSuggestion.latitude, longitude: selectedSuggestion.longitude }}
               />
+            ) : null}
 
-            )}
-
-            {region && (
+            {region ? (
               <Marker
                 coordinate={{ latitude: region.latitude, longitude: region.longitude }}
                 image={require('../../assets/images/map-marker-2.png')}
-
               />
-            )}
+            ) : null}
 
           </MapView>
 
@@ -385,13 +423,13 @@ export default function SearchLocation() {
             setStartLocation(location?.[0]?.formattedAddress || '');
             setMapVisible(false);
           }}>
-            <Text style={styles.buttonText}>Haritada Üzerinden Seç</Text>
+            <Text style={styles.buttonText}>{t('select_on_map')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.closeButton}
             onPress={() => setMapVisible(false)}
           >
-            <Text style={styles.closeButtonText}>Close</Text>
+            <Text style={styles.closeButtonText}>{t('close')}</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -575,5 +613,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  chipsContainer: {
+    marginBottom: 10,
+  },
+  shortcutChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f1f4',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  shortcutChipText: {
+    marginLeft: 6,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4b39ef',
   },
 });

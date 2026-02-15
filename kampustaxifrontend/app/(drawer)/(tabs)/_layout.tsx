@@ -1,66 +1,108 @@
-import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
+import { Tabs, useRouter, useNavigation } from 'expo-router';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useNotifications } from '../../../../src/contexts/NotificationContext'; // Adjust path if needed, assuming src is at root
-// Actually src is at root, so from app/(drawer)/(tabs) it is ../../../src
-// Wait, app is at root of kampustaxifrontend. src is at root of kampustaxifrontend.
-// So path is ../../../src
-
+import { DrawerActions } from '@react-navigation/native';
 import { useNotifications as useNotificationsContext } from '@/contexts/NotificationContext';
-// Better use alias @ if available. internal files used relative paths.
-// app/_layout.tsx used '../contexts/NotificationContext'. 
-// So from app/(drawer)/(tabs), it is '../../../contexts/NotificationContext' if contexts is in default root?
-// Wait, `app/_layout.tsx` import line 35: `import { ... } from '../contexts/NotificationContext';`
-// This implies `contexts` is at `kampustaxifrontend/contexts`. 
-// So path from `app/(drawer)/(tabs)` is `../../../contexts/NotificationContext`.
+import { useTheme } from '@/contexts/ThemeContext';
+import { ThemeType } from '@/styles/theme';
+import { useTranslation } from 'react-i18next';
 
 export default function TabLayout() {
     const { unreadCount } = useNotificationsContext();
+    const { theme } = useTheme();
+    const { t } = useTranslation();
+
+    const router = useRouter();
+    const navigation = useNavigation();
 
     return (
-        <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: '#4b39ef', tabBarInactiveTintColor: 'gray' }}>
+        <Tabs screenOptions={{
+            headerShown: true, // Enable header for Tabs
+            headerTitleAlign: 'center',
+            headerStyle: {
+                backgroundColor: theme.colors.card,
+                borderBottomWidth: 1,
+                borderBottomColor: theme.colors.border,
+                ...theme.shadows.sm,
+                elevation: 0, // Remove default Android shadow
+            },
+            headerTitleStyle: {
+                ...theme.textStyles.header3,
+                color: theme.colors.textDark,
+            },
+            headerLeft: () => (
+                <TouchableOpacity
+                    onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
+                    style={{ paddingLeft: theme.spacing.md }}
+                >
+                    <MaterialIcons name="menu" size={28} color={theme.colors.primary} />
+                </TouchableOpacity>
+            ),
+            headerRight: () => <View style={{ width: 44 }} />, // Balance the left icon
+            tabBarActiveTintColor: theme.colors.primary,
+            tabBarInactiveTintColor: theme.colors.textLight,
+            tabBarStyle: {
+                backgroundColor: theme.colors.card,
+                borderTopColor: theme.colors.border,
+                ...theme.shadows.base,
+            },
+            tabBarLabelStyle: {
+                ...theme.textStyles.caption,
+                fontWeight: '600',
+            }
+        }}>
             <Tabs.Screen
                 name="PassengerScreen"
                 options={{
-                    title: 'Yolculuklar',
+                    title: t('passenger_screen'),
+                    tabBarLabel: t('passenger_screen'),
                     tabBarIcon: ({ color }) => <MaterialIcons name="home" size={24} color={color} />,
                 }}
             />
             <Tabs.Screen
                 name="PostScreen"
                 options={{
-                    title: 'Paylaş',
+                    title: t('post_screen'),
+                    tabBarLabel: t('post_screen'),
                     tabBarIcon: ({ color }) => <MaterialIcons name="add-circle-outline" size={24} color={color} />,
+                }}
+            />
+            <Tabs.Screen
+                name="messages"
+                options={{
+                    title: t('messages'), // Ensure 'messages' key exists in translation or fallback
+                    tabBarLabel: t('messages'),
+                    tabBarIcon: ({ color }) => <MaterialIcons name="chat-bubble-outline" size={24} color={color} />,
                 }}
             />
             <Tabs.Screen
                 name="TravelsScreen"
                 options={{
-                    title: 'Seyehatlerim',
+                    title: t('my_travels'),
+                    tabBarLabel: () => t('post_screen'),
+                    tabBarAccessibilityLabel: t('my_travels'),
                     tabBarIcon: ({ color }) => (
-                        <View>
+                        <View style={{ alignItems: 'center', justifyContent: 'center', top: 5 }}>
                             <MaterialIcons name="card-travel" size={24} color={color} />
                             {unreadCount > 0 && (
-                                <View style={styles.tabBadge}>
-                                    <Text style={styles.tabBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                                <View style={styles(theme).tabBadge}>
+                                    <Text style={styles(theme).tabBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
                                 </View>
                             )}
                         </View>
                     ),
                 }}
             />
-            {/* Hide other screens that act as stack screens inside tabs but aren't tabs themselves if any */}
-
         </Tabs>
     );
 }
 
-const styles = StyleSheet.create({
+const styles = (theme: ThemeType) => StyleSheet.create({
     tabBadge: {
         position: 'absolute',
         top: -5,
         right: -10,
-        backgroundColor: '#ff3b30',
+        backgroundColor: theme.colors.error || '#ff3b30',
         borderRadius: 10,
         minWidth: 16,
         height: 16,

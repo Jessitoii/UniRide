@@ -55,6 +55,7 @@ const borderRadius = {
   base: 16,
   lg: 20,
   xl: 24,
+  '2xl': 32,
   full: 9999,
 };
 
@@ -81,6 +82,13 @@ const shadows = {
     shadowRadius: 4,
     elevation: 4,
   },
+  md: {
+    shadowColor: 'rgba(0, 0, 0, 0.1)',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+  },
   lg: {
     shadowColor: 'rgba(0, 0, 0, 0.1)',
     shadowOffset: { width: 0, height: 4 },
@@ -100,19 +108,20 @@ const shadows = {
 // Colors - Light theme
 const lightColors = {
   // Primary brand colors
-  primary: '#ff0d8e', // Pink
-  primaryLight: '#ff6eb5',
-  primaryDark: '#cc0970',
+  primary: '#FF00BF', // High-contrast Pink
+  primaryLight: '#FF6ecf',
+  primaryDark: '#c70093',
+  primaryTransparent: 'rgba(255, 0, 191, 0.1)',
 
   // Secondary brand colors
-  secondary: '#4b39ef', // Purple
-  secondaryLight: '#7865ff',
-  secondaryDark: '#382dc2',
+  secondary: '#3300FF', // Deep Blue
+  secondaryLight: '#664eff',
+  secondaryDark: '#0000ba',
 
   // Accent colors
-  accent: '#bbbcff', // Light purple
-  accentLight: '#e1e1ff',
-  accentDark: '#9a9be2',
+  accent: '#E0E0E0',
+  accentLight: '#F5F5F5',
+  accentDark: '#BDBDBD',
 
   // Semantic UI colors
   success: '#34c759',
@@ -124,9 +133,9 @@ const lightColors = {
   white: '#ffffff',
   black: '#000000',
   background: '#ffffff',
-  surface: '#f8f8f8',
+  surface: '#f9f9f9',
   card: '#ffffff',
-  text: '#212121',
+  text: '#111111',
   textLight: '#757575',
   textDark: '#000000',
   border: '#e0e0e0',
@@ -134,64 +143,64 @@ const lightColors = {
 
   // Gradients - Represented as arrays of colors
   gradients: {
-    primary: ['#e1d0ff', '#ffc0e4'],
-    secondary: ['#bbbcff', '#ff6eb5'],
-    accent: ['#e1e1ff', '#f8f8f8'],
+    primary: ['#FF00BF', '#3300FF'],
+    secondary: ['#3300FF', '#FF00BF'],
   },
 
   // Status colors
-  online: '#00c853',
-  offline: '#757575',
-  busy: '#ff3b30',
+  online: '#10b981',
+  offline: '#9ca3af',
+  busy: '#ef4444',
 };
 
 // Colors - Dark theme
 const darkColors = {
   // Primary brand colors
-  primary: '#ff5ea9', // Brighter and warmer pink for better visibility
-  primaryLight: '#ff8cbe',
-  primaryDark: '#cc0970',
+  primary: '#FF00BF',
+  primaryLight: '#FF6ecf',
+  primaryDark: '#c70093',
+  primaryTransparent: 'rgba(255, 0, 191, 0.1)',
 
   // Secondary brand colors
-  secondary: '#7c6bff', // Brighter purple for visibility
-  secondaryLight: '#9f91ff',
-  secondaryDark: '#5648cf',
+  secondary: '#3300FF',
+  secondaryLight: '#664eff',
+  secondaryDark: '#0000ba',
 
   // Accent colors
-  accent: '#a88dfc', // More vibrant purple accent
-  accentLight: '#c7b8ff',
-  accentDark: '#7b59ee',
+  accent: '#424242',
+  accentLight: '#616161',
+  accentDark: '#212121',
 
   // Semantic UI colors
-  success: '#4ade80', // Brighter green for better visibility
-  warning: '#fbbf24', // Warmer amber for better visibility
-  error: '#f87171', // Softer red for better visibility
-  info: '#60a5fa', // Brighter blue for better visibility
+  success: '#30D158',
+  warning: '#FFD60A',
+  error: '#FF453A',
+  info: '#64D2FF',
 
   // Neutral colors
   white: '#ffffff',
   black: '#000000',
-  background: '#111827', // Subtle blue-gray dark background
-  surface: '#1f2937', // Slightly lighter blue-gray
-  card: '#2a3441', // Card background with subtle blue tint
-  text: '#f3f4f6', // Off-white text for better readability
-  textLight: '#9ca3af', // Soft gray for secondary text
-  textDark: '#f9fafb', // Almost white for headers
-  border: '#374151', // Subtle blue-gray border
-  divider: '#2d3748', // Slightly visible divider
+  background: '#000000',
+  surface: '#121212',
+  card: '#1C1C1E',
+  text: '#FFFFFF',
+  textLight: '#EBEBF5',
+  textDark: '#FFFFFF',
+  border: '#38383A',
+  divider: '#545458',
 
   // Gradients - Represented as arrays of colors
   gradients: {
-    primary: ['#7c6bff', '#ff5ea9'], // Purple to pink
-    secondary: ['#4c1d95', '#9333ea'], // Deep purple to medium purple
-    accent: ['#6366f1', '#2563eb'], // Indigo to blue
+    primary: ['#FF00BF', '#3300FF'],
+    secondary: ['#3300FF', '#FF00BF'],
   },
 
   // Status colors
-  online: '#10b981', // Emerald green
-  offline: '#9ca3af', // Gray
-  busy: '#ef4444', // Red
+  online: '#10b981',
+  offline: '#9ca3af',
+  busy: '#ef4444',
 };
+
 
 // Common Text Styles
 const createTextStyles = (colors: typeof lightColors) => ({
@@ -331,7 +340,7 @@ const createCardStyles = (colors: typeof lightColors) => ({
 // Create a theme object with light and dark variants
 const createTheme = (isDark: boolean) => {
   const colors = isDark ? darkColors : lightColors;
-  
+
   return {
     isDark,
     colors,

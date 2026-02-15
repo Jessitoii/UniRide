@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { lightTheme, darkTheme, ThemeType } from '../styles/theme';
+import { useShortcuts } from '@/src/hooks/useShortcuts';
 
 // Add a type for Material Icons names
 type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name'];
@@ -38,6 +39,7 @@ interface LocationSearchBoxProps {
   iconColor?: string;
   onPressMap?: () => void;
   onClear?: () => void;
+  showShortcuts?: boolean;
 }
 
 const LocationSearchBox: React.FC<LocationSearchBoxProps> = ({
@@ -53,14 +55,16 @@ const LocationSearchBox: React.FC<LocationSearchBoxProps> = ({
   iconColor,
   onPressMap,
   onClear,
+  showShortcuts = true,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const styles = createStyles(theme);
-  
+  const { shortcuts } = useShortcuts();
+
   const iconColorValue = iconColor || theme.colors.primary;
-  
+
   // Close suggestions when clicking outside
   useEffect(() => {
     const keyboardDidHideListener = Keyboard.addListener(
@@ -99,7 +103,7 @@ const LocationSearchBox: React.FC<LocationSearchBoxProps> = ({
   return (
     <View style={styles.container}>
       {label && <Text style={styles.label}>{label}</Text>}
-      
+
       <View
         style={[
           styles.inputContainer,
@@ -108,7 +112,7 @@ const LocationSearchBox: React.FC<LocationSearchBoxProps> = ({
         ]}
       >
         <MaterialIcons name={iconName} size={20} color={iconColorValue} />
-        
+
         <TextInput
           style={styles.input}
           placeholder={placeholder}
@@ -118,7 +122,7 @@ const LocationSearchBox: React.FC<LocationSearchBoxProps> = ({
           onFocus={() => setIsFocused(true)}
           autoCapitalize="none"
         />
-        
+
         {isLoading ? (
           <ActivityIndicator size="small" color={theme.colors.primary} />
         ) : (
@@ -128,7 +132,7 @@ const LocationSearchBox: React.FC<LocationSearchBoxProps> = ({
                 <MaterialIcons name="clear" size={18} color={theme.colors.textLight} />
               </TouchableOpacity>
             )}
-            
+
             {onPressMap && (
               <TouchableOpacity
                 onPress={() => {
@@ -143,9 +147,9 @@ const LocationSearchBox: React.FC<LocationSearchBoxProps> = ({
           </View>
         )}
       </View>
-      
+
       {error && <Text style={styles.errorText}>{error}</Text>}
-      
+
       {isFocused && suggestions.length > 0 && (
         <View style={styles.suggestionsContainer}>
           <FlatList
@@ -242,6 +246,28 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
   suggestionAddress: {
     ...theme.textStyles.caption,
     color: theme.colors.textLight,
+  },
+  shortcutsContainer: {
+    marginTop: theme.spacing.sm,
+  },
+  shortcutsList: {
+    paddingHorizontal: 2,
+  },
+  shortcutChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primaryLight, // Ensure this exists in your theme, or use a fallback like '#e3f2fd'
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  shortcutText: {
+    ...theme.textStyles.caption,
+    fontWeight: '600',
+    color: theme.colors.primary,
   },
 });
 

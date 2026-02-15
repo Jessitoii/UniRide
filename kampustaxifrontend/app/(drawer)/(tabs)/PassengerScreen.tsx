@@ -1,19 +1,32 @@
-'use client';
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput, FlatList, Alert, StatusBar, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  TouchableOpacity,
+  RefreshControl,
+  TextInput,
+  StatusBar,
+  Image,
+} from 'react-native';
 import Post from '@/components/Post';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { BASE_URL } from '@/env';
-import { lightTheme, ThemeType } from '@/styles/theme';
+import { ThemeType } from '@/styles/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import MapView, { Circle } from 'react-native-maps';
 import { mapStyle } from '@/styles/mapStyle';
 import { getCurrentPositionAsync, requestForegroundPermissionsAsync } from 'expo-location';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 
 export default function PassengerScreen() {
+  const { theme, isDark } = useTheme();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [visiblePosts, setVisiblePosts] = useState<number>(2);
@@ -23,48 +36,51 @@ export default function PassengerScreen() {
   const [posts, setPosts] = useState<any[] | null>(null);
 
   const router = useRouter();
-  const params = useLocalSearchParams() as unknown as { userLocation: any | null, selectedUniversity: string | null, selectedFaculty: string | null };
-  const userLocation = params?.userLocation;
-  const selectedUniversity = params?.selectedUniversity;
-  const selectedFaculty = params?.selectedFaculty;
+  const params = useLocalSearchParams();
+  const rawUserLocation = params?.userLocation;
+  // Use destinationUniversity/Faculty keys as sent by SearchLocation
+  const destinationUniversity = params?.destinationUniversity as string;
+  const destinationFaculty = params?.destinationFaculty as string;
+
+  // Safely parse userLocation if it comes as a string
+  const userLocation = React.useMemo(() => {
+    if (!rawUserLocation) return null;
+    try {
+      return typeof rawUserLocation === 'string' ? JSON.parse(rawUserLocation) : rawUserLocation;
+    } catch (e) {
+      console.error('Error parsing userLocation:', e);
+      return null;
+    }
+  }, [rawUserLocation]);
 
   const fetchPosts = async () => {
-    if (!userLocation) {
+    if (!userLocation || !userLocation.latitude) {
       return;
     }
 
     setLoading(true);
-    if (!selectedUniversity && !selectedFaculty) {
+    try {
       const queryParams = new URLSearchParams({
         latitude: userLocation.latitude.toString(),
         longitude: userLocation.longitude.toString(),
+        destinationUniversity: destinationUniversity || '',
+        destinationFaculty: destinationFaculty || '',
       });
       const res = await fetch(`${BASE_URL}/api/posts/nearby?${queryParams.toString()}`, {
         method: 'GET',
       });
       const data = await res.json();
       setPosts(data);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+    } finally {
       setLoading(false);
-      return;
     }
-    const queryParams = new URLSearchParams({
-      latitude: userLocation.latitude.toString(),
-      longitude: userLocation.longitude.toString(),
-      destinationUniversity: selectedUniversity || '',
-      destinationFaculty: selectedFaculty || '',
-    });
-    const res = await fetch(`${BASE_URL}/api/posts/nearby?${queryParams.toString()}`, {
-      method: 'GET',
-    });
-    const data = await res.json();
-    setPosts(data);
-    setLoading(false);
-  }
-
+  };
 
   useEffect(() => {
     fetchPosts();
-  }, [userLocation, selectedUniversity, selectedFaculty]);
+  }, [userLocation, destinationUniversity, destinationFaculty]);
 
   useEffect(() => {
     const initScreen = async () => {
@@ -82,8 +98,6 @@ export default function PassengerScreen() {
         router.push('/auth/login');
         return;
       }
-
-      console.log(token);
 
       const res = await fetch(`${BASE_URL}/api/users/profile`, {
         method: 'GET',
@@ -110,7 +124,6 @@ export default function PassengerScreen() {
     try {
       const { status } = await requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        console.log('Location permission denied');
         return;
       }
 
@@ -129,11 +142,11 @@ export default function PassengerScreen() {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setVisiblePosts(2);
-    fetchPosts();
-    setRefreshing(false);
+    fetchPosts().then(() => setRefreshing(false));
   }, []);
 
   const extractDistrict = (address: string) => {
+    if (!address) return '';
     const parts = address.split(',');
     return parts.length > 1 ? parts[0].trim() : address;
   };
@@ -154,70 +167,78 @@ export default function PassengerScreen() {
 
   const handleSearchLocationPress = () => {
     router.push('/(drawer)/SearchLocation');
-  }
+  };
 
-  if (loading) {
+  if (loading && !posts) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={lightTheme.colors.primary} />
+      <View style={styles(theme).loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
 
   return (
     <ScrollView
-      style={styles.container}
+      style={styles(theme).container}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          colors={[lightTheme.colors.primary]}
+          colors={[theme.colors.primary]}
+          tintColor={theme.colors.primary}
         />
       }
     >
       <LinearGradient
-        style={styles.header}
-        colors={['#e1d0ff', '#ffc0e4']}
+        style={styles(theme).header}
+        colors={theme.colors.gradients.primary as any}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor="transparent"
+          translucent={true}
+        />
         <Image
           source={require('@/assets/images/logo.png')}
-          style={styles.logo}
+          style={styles(theme).logo}
         />
-        <Text style={styles.welcomeTitle}>
-          Merhaba, {profile?.name || 'Yolcu'}
+        <Text style={styles(theme).welcomeTitle}>
+          {t('hello_passenger', { name: profile?.name || 'Yolcu' })}
         </Text>
 
-        <View style={styles.searchContainer}>
+        <View style={styles(theme).searchContainer}>
           <TouchableOpacity
-            style={styles.searchBox}
+            style={styles(theme).searchBox}
             onPress={handleSearchLocationPress}
             activeOpacity={0.8}
           >
             <MaterialIcons
               name="search"
               size={24}
-              color={lightTheme.colors.primary}
+              color={theme.colors.primary}
             />
             <TextInput
-              style={styles.searchText}
-              placeholder="Konum ara ya da seç"
+              style={styles(theme).searchText}
+              placeholder={t('search_address')}
+              placeholderTextColor={theme.colors.textLight}
               value={searchQuery}
               onFocus={handleSearchLocationPress}
               editable={false}
+              onChangeText={setSearchQuery}
             />
           </TouchableOpacity>
         </View>
       </LinearGradient>
 
       {!posts ? (
-        <View style={styles.noLocationContainer}>
-          <Text style={styles.sectionTitle}>Şu anki konumunuz</Text>
-          <View style={styles.mapContainer}>
+        <View style={styles(theme).noLocationContainer}>
+          <Text style={styles(theme).sectionTitle}>{t('current_location')}</Text>
+          <View style={styles(theme).mapContainer}>
             {initialRegion && (
               <MapView
-                style={styles.map}
+                style={styles(theme).map}
                 initialRegion={initialRegion}
                 customMapStyle={mapStyle}
               >
@@ -227,18 +248,18 @@ export default function PassengerScreen() {
                     longitude: initialRegion.longitude,
                   }}
                   radius={50}
-                  strokeColor={lightTheme.colors.white}
+                  strokeColor={theme.colors.white}
                   strokeWidth={6}
-                  fillColor={lightTheme.colors.primary}
+                  fillColor={theme.colors.primary}
                 />
               </MapView>
             )}
           </View>
         </View>
       ) : (
-        <View style={styles.postsContainer}>
+        <View style={styles(theme).postsContainer}>
           {posts.length > 0 ? (
-            <View style={styles.postsContainer}>
+            <View>
               {posts.slice(0, visiblePosts).map((post) => (
                 <React.Fragment key={post.id}>
                   <Post
@@ -251,35 +272,35 @@ export default function PassengerScreen() {
                     startTime={new Date(post.datetimeStart).toLocaleTimeString()}
                     endTime={new Date(post.datetimeEnd).toLocaleTimeString()}
                     route={post.route}
-                    userLocation={params.userLocation}
+                    userLocation={userLocation}
                     onPress={() => navigateToPostDetail(post.id)}
                     stars={post.user.stars}
                   />
-                  <View style={styles.postSeparator} />
+                  <View style={styles(theme).postSeparator} />
                 </React.Fragment>
               ))}
 
               {visiblePosts < posts.length && (
                 <TouchableOpacity
-                  style={styles.loadMoreButton}
+                  style={styles(theme).loadMoreButton}
                   onPress={handleShowMore}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.loadMoreText}>
-                    Daha fazla görüntüle
+                  <Text style={styles(theme).loadMoreText}>
+                    {t('load_more')}
                   </Text>
                 </TouchableOpacity>
               )}
             </View>
           ) : (
-            <View style={styles.emptyStateContainer}>
+            <View style={styles(theme).emptyStateContainer}>
               <MaterialIcons
                 name="directions-car"
                 size={64}
-                color={lightTheme.colors.textLight}
+                color={theme.colors.textLight}
               />
-              <Text style={styles.emptyStateText}>
-                Bu alanda henüz bir yolculuk bulunmamaktadır.
+              <Text style={styles(theme).emptyStateText}>
+                {t('no_rides_found')}
               </Text>
             </View>
           )}
@@ -289,7 +310,7 @@ export default function PassengerScreen() {
   );
 }
 
-const createStyles = (theme: ThemeType) => StyleSheet.create({
+const styles = (theme: ThemeType) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -301,18 +322,21 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   header: {
-    paddingTop: theme.spacing['3xl'],
+    paddingTop: theme.spacing['4xl'],
     paddingBottom: theme.spacing.xl,
     paddingHorizontal: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
+    ...theme.shadows.base,
   },
   logo: {
-    width: 75,
-    height: 75,
+    width: 60,
+    height: 60,
     alignSelf: 'center',
     marginBottom: theme.spacing.md,
   },
   welcomeTitle: {
-    ...theme.textStyles.header1,
+    ...theme.textStyles.header2,
     color: theme.colors.textDark,
     alignSelf: 'flex-start',
     marginBottom: theme.spacing.lg,
@@ -327,7 +351,7 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
     paddingHorizontal: theme.spacing.base,
     paddingVertical: theme.spacing.md,
     borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.card,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
@@ -335,6 +359,7 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
     flex: 1,
     ...theme.textStyles.body,
     marginLeft: theme.spacing.sm,
+    color: theme.colors.text,
   },
   noLocationContainer: {
     padding: theme.spacing.xl,
@@ -343,8 +368,8 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
     height: 200,
     borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: theme.colors.secondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     ...theme.shadows.base,
   },
   map: {
@@ -353,6 +378,7 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
   },
   sectionTitle: {
     ...theme.textStyles.header3,
+    color: theme.colors.textDark,
     marginBottom: theme.spacing.md,
   },
   postsContainer: {
@@ -365,7 +391,7 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
   },
   loadMoreButton: {
     backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.base,
+    paddingVertical: theme.spacing.md,
     borderRadius: theme.borderRadius.md,
     alignItems: 'center',
     marginTop: theme.spacing.md,
@@ -386,5 +412,3 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
     color: theme.colors.textLight,
   },
 });
-
-const styles = createStyles(lightTheme);

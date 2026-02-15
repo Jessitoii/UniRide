@@ -22,6 +22,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Local imports
 import { BASE_URL } from '@/env';
 import { lightTheme, darkTheme, ThemeType } from '@/styles/theme';
+import { useTranslation } from 'react-i18next';
 
 // Types
 interface CarFormData {
@@ -32,6 +33,7 @@ interface CarFormData {
 
 export default function CarDetail() {
   // State
+  const { t } = useTranslation();
   const [formData, setFormData] = useState<CarFormData>({
     brand: '',
     model: '',
@@ -61,8 +63,8 @@ export default function CarDetail() {
 
       if (!permissionResult.granted) {
         Alert.alert(
-          "Permission Required",
-          "You need to grant access to your photo library to select an image."
+          t('permission_required'),
+          t('photo_library_permission')
         );
         return;
       }
@@ -79,19 +81,19 @@ export default function CarDetail() {
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      setErrorMessage('Could not access the image library');
+      setErrorMessage(t('error_access_gallery'));
     }
   }, []);
 
   // Form validation
   const validateForm = (): boolean => {
     if (!formData.brand.trim()) {
-      setErrorMessage('Please enter your car brand');
+      setErrorMessage(t('enter_car_brand'));
       return false;
     }
 
     if (!formData.model.trim()) {
-      setErrorMessage('Please enter your car model');
+      setErrorMessage(t('enter_car_model'));
       return false;
     }
 
@@ -109,7 +111,7 @@ export default function CarDetail() {
       const token = await AsyncStorage.getItem('token');
 
       if (!token) {
-        setErrorMessage('You must be logged in to save your car details');
+        setErrorMessage(t('login_required_save_car'));
         return;
       }
 
@@ -128,7 +130,7 @@ export default function CarDetail() {
 
       if (!carResponse.ok) {
         const errorData = await carResponse.json();
-        throw new Error(errorData.message || 'Failed to save car details');
+        throw new Error(errorData.message || t('error_save_car'));
       }
 
       const car = await carResponse.json();
@@ -160,14 +162,14 @@ export default function CarDetail() {
         });
 
         if (!photoResponse.ok) {
-          throw new Error('Failed to upload car photo');
+          throw new Error(t('error_upload_photo'));
         }
       }
 
       Alert.alert(
-        "Success",
-        "Your car details have been saved successfully",
-        [{ text: "OK", onPress: () => router.back() }]
+        t('success'),
+        t('car_saved_success'),
+        [{ text: t('ok'), onPress: () => router.back() }]
       );
     } catch (error) {
       console.error('Error saving car details:', error);
@@ -191,7 +193,7 @@ export default function CarDetail() {
         >
           <MaterialIcons name="arrow-back" size={24} color={theme.colors.textDark} />
         </TouchableOpacity>
-        <Text style={styles(theme).headerText}>Car Details</Text>
+        <Text style={styles(theme).headerText}>{t('car_details')}</Text>
       </View>
 
       {/* Error message */}
@@ -204,47 +206,47 @@ export default function CarDetail() {
 
       {/* Form sections */}
       <View style={styles(theme).formSection}>
-        <Text style={styles(theme).sectionTitle}>Basic Information</Text>
+        <Text style={styles(theme).sectionTitle}>{t('basic_info')}</Text>
         <Text style={styles(theme).sectionDescription}>
-          Please provide your car details for better identification
+          {t('car_details_desc')}
         </Text>
 
         {/* Brand field */}
         <View style={styles(theme).inputGroup}>
-          <Text style={styles(theme).label}>Car Brand</Text>
+          <Text style={styles(theme).label}>{t('car_brand')}</Text>
           <TextInput
             style={styles(theme).input}
-            placeholder="Select your car brand"
+            placeholder={t('select_car_brand')}
             placeholderTextColor={theme.colors.textLight}
             value={formData.brand}
             onChangeText={(text) => handleChange('brand', text)}
           />
           <Text style={styles(theme).helperText}>
-            Choose your car brand from the list
+            {t('car_brand_helper')}
           </Text>
         </View>
 
         {/* Model field */}
         <View style={styles(theme).inputGroup}>
-          <Text style={styles(theme).label}>Car Model</Text>
+          <Text style={styles(theme).label}>{t('car_model')}</Text>
           <TextInput
             style={styles(theme).input}
-            placeholder="Select your car model"
+            placeholder={t('select_car_model')}
             placeholderTextColor={theme.colors.textLight}
             value={formData.model}
             onChangeText={(text) => handleChange('model', text)}
           />
           <Text style={styles(theme).helperText}>
-            Please select your car brand first
+            {t('select_brand_first')}
           </Text>
         </View>
       </View>
 
       {/* Photo section */}
       <View style={styles(theme).formSection}>
-        <Text style={styles(theme).sectionTitle}>Car Photo</Text>
+        <Text style={styles(theme).sectionTitle}>{t('car_photo')}</Text>
         <Text style={styles(theme).sectionDescription}>
-          Add a clear photo of your car to help passengers identify you
+          {t('car_photo_desc')}
         </Text>
 
         <TouchableOpacity
@@ -262,14 +264,14 @@ export default function CarDetail() {
             <View style={styles(theme).photoPlaceholder}>
               <MaterialIcons name="add-a-photo" size={48} color={theme.colors.primary} />
               <Text style={styles(theme).photoPlaceholderText}>
-                Tap to add a photo
+                {t('tap_to_add_photo')}
               </Text>
             </View>
           )}
         </TouchableOpacity>
 
         <Text style={styles(theme).helperText}>
-          Please use a recent photo of your car to help passengers recognize it easily
+          {t('car_photo_helper')}
         </Text>
       </View>
 
@@ -286,7 +288,7 @@ export default function CarDetail() {
         {isLoading ? (
           <ActivityIndicator size="small" color={theme.colors.white} />
         ) : (
-          <Text style={styles(theme).saveButtonText}>Save Car Details</Text>
+          <Text style={styles(theme).saveButtonText}>{t('save_car_details')}</Text>
         )}
       </TouchableOpacity>
     </ScrollView>

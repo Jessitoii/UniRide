@@ -1,69 +1,76 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useTheme } from '@/contexts/ThemeContext';
+import { ThemeType } from '@/styles/theme';
 
 interface PassedPostProps {
   from: string;
   to: string;
   date: string;
-  time: string;
-
 }
 
-const PassedPost: React.FC<PassedPostProps> = ({ from, to, date, time }) => {
-  return (
-    <View style={styles.container}>
-      <View style={styles.iconContainer}>
-        <MaterialIcons name="history" size={24} color="#4b39ef" />
-      </View>
-      <View style={styles.infoContainer}>
-        <Text style={styles.title}>{from}
-          <MaterialIcons name="arrow-forward" size={24} color="#4b39ef" />
-          {to}</Text>
-        <Text style={styles.dateTime}>{date}</Text>
-      </View>
+const PassedPost: React.FC<PassedPostProps> = ({ from, to, date }) => {
+  const { theme } = useTheme();
+  const s = styles(theme);
 
+  return (
+    <View style={s.container}>
+      <View style={s.iconContainer}>
+        <MaterialIcons name="history" size={20} color={theme.colors.primary} />
+      </View>
+      <View style={s.infoContainer}>
+        <View style={s.titleRow}>
+          <Text style={s.title}>{from}</Text>
+          <MaterialIcons name="arrow-forward" size={16} color={theme.colors.primary} style={s.arrow} />
+          <Text style={s.title}>{to}</Text>
+        </View>
+        <Text style={s.dateTime}>{date}</Text>
+      </View>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = (theme: ThemeType) => StyleSheet.create({
   container: {
-    height: 60,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    backgroundColor: theme.colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderBottomColor: theme.colors.border,
   },
   iconContainer: {
-    width: 32,
-    height: 32,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    backgroundColor: theme.colors.primaryTransparent,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
-  },
-  icon: {
-    fontSize: 18,
-    textAlign: 'center',
+    marginRight: 12,
   },
   infoContainer: {
     flex: 1,
-    flexDirection: 'column',
     justifyContent: 'center',
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   title: {
-    fontSize: 14,
-    color: '#000',
+    ...theme.textStyles.body,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  arrow: {
+    marginHorizontal: 8,
   },
   dateTime: {
-    fontSize: 12,
-    color: 'rgba(0, 0, 0, 0.5)',
+    ...theme.textStyles.caption,
+    color: theme.colors.textLight,
   },
-
 });
 
-export default PassedPost; 
+export default PassedPost;

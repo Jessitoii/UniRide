@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,21 +14,22 @@ import {
   StatusBar,
   ActivityIndicator,
   useColorScheme,
-  SafeAreaView
+  SafeAreaView,
+  LayoutAnimation,
+  UIManager
 } from 'react-native';
-import io from 'react-native-socket.io-client';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { BASE_URL } from '@/env';
 import { lightTheme, darkTheme, ThemeType } from '../../styles/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
+import { useSocket } from '@/contexts/SocketContext';
+import * as Haptics from 'expo-haptics';
 
-// Define custom Socket interface
-interface Socket {
-  emit: (event: string, data: any) => void;
-  on: (event: string, callback: (data: any) => void) => void;
-  off: (event: string) => void;
-  disconnect: () => void;
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
 // Define types for message data
@@ -38,14 +39,8 @@ interface Message {
   sender: string;
   timestamp: string;
   profilePhoto?: string;
-}
-
-// Define types for route params
-interface ChatRouteParams {
-  roomId: string;
-  currentUserId: string;
-  recipientId: string;
-  recipientName?: string;
+  pending?: boolean; // For optimistic UI
+  status?: 'SENT' | 'DELIVERED' | 'READ';
 }
 
 // Define types for user data
@@ -59,14 +54,30 @@ interface UserProfile {
 
 const ChatScreen = () => {
   // State management
+  const { t } = useTranslation();
   const [message, setMessage] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState<boolean>(false);
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [recipient, setRecipient] = useState<UserProfile | null>(null);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+
+  // Refs for stable access in listeners
+  const currentUserRef = useRef<UserProfile | null>(null);
+  const recipientRef = useRef<UserProfile | null>(null);
+
+  // Update refs when state changes
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  useEffect(() => {
+    recipientRef.current = recipient;
+  }, [recipient]);
+
+  // Socket
+  const { socket, isConnected } = useSocket();
 
   // Navigation and params
   const router = useRouter();
@@ -78,25 +89,6 @@ const ChatScreen = () => {
   // Theme setup
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-
-  // Initialize socket connection
-  useEffect(() => {
-    const newSocket = io(BASE_URL, {
-      transports: ['websocket'],
-      query: {
-        userId: currentUserId
-      }
-    });
-
-    setSocket(newSocket);
-
-    // Cleanup socket connection
-    return () => {
-      if (newSocket) {
-        newSocket.disconnect();
-      }
-    };
-  }, [currentUserId]);
 
   // Load user profiles
   useEffect(() => {
@@ -150,7 +142,11 @@ const ChatScreen = () => {
 
   // Handle socket events and fetch initial messages
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !isConnected) return;
+
+    // Join chat room
+    // Note: Backend uses 'joinRoom' with 'rideId'. Assuming roomId param maps to rideId.
+    socket.emit('joinRoom', { rideId: roomId });
 
     const fetchMessages = async () => {
       try {
@@ -165,28 +161,34 @@ const ChatScreen = () => {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to fetch messages');
+          // Fallback or ignore if just starting
+          // throw new Error(t('error_fetch_messages'));
+        } else {
+          const data = await response.json();
+          // Add profile photos to messages
+          const enhancedMessages = data.map((msg: any) => ({
+            id: msg.id,
+            text: msg.text,
+            sender: msg.senderId || msg.sender, // Handle both structures
+            timestamp: msg.timestamp,
+            profilePhoto: (msg.senderId || msg.sender) === currentUserId
+              ? currentUser?.profilePhoto
+              : recipient?.profilePhoto,
+            status: msg.status
+          }));
+          setMessages(enhancedMessages);
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({ animated: false });
+          }, 200);
+
+          // Mark read if needed
+          if (currentUserId) {
+            socket.emit('messages_read', { rideId: roomId, userId: currentUserId });
+          }
         }
-
-        const data = await response.json();
-
-        // Add profile photos to messages
-        const enhancedMessages = data.map((msg: Message) => ({
-          ...msg,
-          profilePhoto: msg.sender === currentUserId
-            ? currentUser?.profilePhoto
-            : recipient?.profilePhoto
-        }));
-
-        setMessages(enhancedMessages);
-
-        // Scroll to the latest message
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: false });
-        }, 200);
       } catch (error) {
         console.error('Error fetching messages:', error);
-        setError('Failed to load messages. Please try again.');
+        setError(t('error_load_messages'));
       } finally {
         setLoading(false);
       }
@@ -194,43 +196,84 @@ const ChatScreen = () => {
 
     fetchMessages();
 
-    // Join chat room
-    socket.emit('joinRoom', { roomId });
+    // Cleanup listeners is handled in the separate effect below
+  }, [socket, isConnected, roomId, currentUserId, recipientId]);
 
-    // Listen for new messages
-    socket.on('receiveMessage', (newMessage: Message) => {
-      const enhancedMessage = {
-        ...newMessage,
-        profilePhoto: newMessage.sender === currentUserId
-          ? currentUser?.profilePhoto
-          : recipient?.profilePhoto
+  // Separate effect for listeners to avoid stale closures and re-binding
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const handleReceiveMessage = (newMessage: any) => {
+      console.log('[Socket] Received Message:', newMessage);
+
+      // Haptic feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      const senderId = newMessage.senderId || newMessage.sender;
+      const currentId = currentUserRef.current?.id;
+
+      const enhancedMessage: Message = {
+        id: newMessage.id,
+        text: newMessage.text,
+        sender: senderId,
+        timestamp: newMessage.timestamp,
+        profilePhoto: senderId === currentId
+          ? currentUserRef.current?.profilePhoto
+          : recipientRef.current?.profilePhoto,
+        status: newMessage.status
       };
 
-      setMessages((prevMessages) => [...prevMessages, enhancedMessage]);
+      setMessages((prevMessages) => {
+        const existingIndex = prevMessages.findIndex(m => m.id === enhancedMessage.id);
+        if (existingIndex !== -1) {
+          const newArr = [...prevMessages];
+          if (JSON.stringify(newArr[existingIndex]) !== JSON.stringify(enhancedMessage)) {
+            newArr[existingIndex] = enhancedMessage;
+            return newArr;
+          }
+          return prevMessages;
+        }
 
-      // Scroll to the new message
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        return [...prevMessages, enhancedMessage];
+      });
+
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
-    });
+
+      if (currentId && senderId !== currentId) {
+        socket.emit('messages_read', { rideId: roomId, userId: currentId });
+      }
+    };
+
+    const handleReadUpdate = ({ userId: readerId }: { userId: string }) => {
+      setMessages(prev => prev.map(m => {
+        if (m.sender !== readerId && m.status !== 'READ') {
+          return { ...m, status: 'READ' };
+        }
+        return m;
+      }));
+    };
+
+    socket.on('receiveMessage', handleReceiveMessage);
+    socket.on('messages_read_update', handleReadUpdate);
 
     return () => {
-      socket.off('receiveMessage');
+      socket.off('receiveMessage', handleReceiveMessage);
+      socket.off('messages_read_update', handleReadUpdate);
     };
-  }, [socket, roomId, currentUserId, currentUser, recipient]);
+  }, [socket, isConnected, roomId]);
 
   // Format date for display
   const formatMessageTime = (timestamp: string): string => {
     try {
       const date = new Date(timestamp);
       if (isNaN(date.getTime())) {
-        // If parsing fails, use the original format
         return timestamp;
       }
-
       const now = new Date();
       const isToday = date.toDateString() === now.toDateString();
-
       if (isToday) {
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       } else {
@@ -243,54 +286,80 @@ const ChatScreen = () => {
 
   // Send a message
   const sendMessage = async () => {
-    if (!message.trim() || !socket) return;
+    if (!message.trim()) return;
 
     const trimmedMessage = message.trim();
     setMessage('');
     setSending(true);
 
+    const tempId = Date.now().toString();
+    const timestamp = new Date().toISOString();
+
+    const optimisticMessage: Message = {
+      id: tempId,
+      text: trimmedMessage,
+      sender: currentUserId,
+      timestamp,
+      profilePhoto: currentUser?.profilePhoto,
+      pending: true,
+      status: 'SENT'
+    };
+
+    // Optimistic Update
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setMessages((prev) => [...prev, optimisticMessage]);
+
+    // Scroll
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+
     try {
-      const timestamp = new Date().toISOString();
-
-      const newMessage = {
-        text: trimmedMessage,
-        sender: currentUserId,
-        timestamp,
-        profilePhoto: currentUser?.profilePhoto
-      };
-
-      // Emit message to socket
-      socket.emit('sendMessage', { roomId, message: newMessage });
-
-      // Optimistically add message to the list
-      setMessages((prevMessages) => [...prevMessages, newMessage]);
-
       // Save message to the database
-      await fetch(`${BASE_URL}/api/chat/messages`, {
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(`${BASE_URL}/api/chat/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          roomId,
+          rideId: roomId, // API expects rideId
           senderId: currentUserId,
           receiverId: recipientId,
           text: trimmedMessage
         }),
       });
 
-      // Scroll to the new message
-      flatListRef.current?.scrollToEnd({ animated: true });
+      if (response.ok) {
+        const savedMessage = await response.json();
+
+        // Replace optimistic message with real one
+        setMessages(prev => prev.map(m => m.id === tempId ? {
+          ...m,
+          id: savedMessage.id, // Update ID
+          pending: false,
+          status: 'SENT'
+        } : m));
+
+        // Socket will also emit, but we have updated ID now so dedupe logic in receiveMessage will handle it or update it.
+      } else {
+        throw new Error('Failed to send');
+      }
+
     } catch (error) {
       console.error('Error sending message:', error);
-      // Show error message
-      setError('Failed to send message. Please try again.');
-
-      // Remove the optimistically added message
-      setMessages((prevMessages) => prevMessages.slice(0, -1));
+      setError(t('error_send_message'));
+      // Remove optimistic message on failure
+      setMessages((prev) => prev.filter(m => m.id !== tempId));
     } finally {
       setSending(false);
     }
+  };
+
+  const renderTicks = (status?: string, pending?: boolean) => {
+    if (pending) return <Ionicons name="time-outline" size={14} color={theme.colors.white} />;
+    if (status === 'READ') return <Ionicons name="checkmark-done" size={14} color={theme.colors.secondary} />; // Blue-ish
+    if (status === 'DELIVERED') return <Ionicons name="checkmark-done" size={14} color={theme.colors.white} />;
+    return <Ionicons name="checkmark" size={14} color={theme.colors.white} />;
   };
 
   // Render message item
@@ -311,7 +380,8 @@ const ChatScreen = () => {
 
         <View style={[
           styles(theme).messageBubble,
-          isCurrentUser ? styles(theme).myMessage : styles(theme).otherMessage
+          isCurrentUser ? styles(theme).myMessage : styles(theme).otherMessage,
+          item.pending && { opacity: 0.7 }
         ]}>
           <Text style={[
             styles(theme).messageText,
@@ -319,12 +389,19 @@ const ChatScreen = () => {
           ]}>
             {item.text}
           </Text>
-          <Text style={[
-            styles(theme).timestamp,
-            isCurrentUser ? styles(theme).myTimestamp : styles(theme).otherTimestamp
-          ]}>
-            {formatMessageTime(item.timestamp)}
-          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 4 }}>
+            <Text style={[
+              styles(theme).timestamp,
+              isCurrentUser ? styles(theme).myTimestamp : styles(theme).otherTimestamp
+            ]}>
+              {formatMessageTime(item.timestamp)}
+            </Text>
+            {isCurrentUser && (
+              <View style={{ marginLeft: 4 }}>
+                {renderTicks(item.status, item.pending)}
+              </View>
+            )}
+          </View>
         </View>
 
         {isCurrentUser && (
@@ -348,13 +425,17 @@ const ChatScreen = () => {
       </TouchableOpacity>
 
       <View style={styles(theme).headerAvatar}>
-        <MaterialIcons name="person" size={40} color={'#ccc'} />
+        {recipient?.profilePhoto ? (
+          <Image source={{ uri: recipient.profilePhoto }} style={{ width: 46, height: 46, borderRadius: 23 }} />
+        ) : (
+          <MaterialIcons name="person" size={40} color={'#ccc'} />
+        )}
       </View>
 
       <View style={styles(theme).headerInfo}>
         <Text style={styles(theme).headerName}>{recipient?.name || 'User'}</Text>
         <Text style={styles(theme).headerStatus}>
-          {recipient?.isOnline ? 'Online' : recipient?.lastSeen ? `Last seen ${formatMessageTime(recipient.lastSeen)}` : 'Offline'}
+          {recipient?.isOnline ? t('online') : recipient?.lastSeen ? `${t('last_seen')} ${formatMessageTime(recipient.lastSeen)}` : t('offline')}
         </Text>
       </View>
     </View>
@@ -365,7 +446,7 @@ const ChatScreen = () => {
     return (
       <View style={styles(theme).loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles(theme).loadingText}>Mesajlar yükleniyor...</Text>
+        <Text style={styles(theme).loadingText}>{t('loading_messages')}</Text>
       </View>
     );
   }
@@ -401,8 +482,8 @@ const ChatScreen = () => {
           ListEmptyComponent={
             <View style={styles(theme).emptyContainer}>
               <MaterialIcons name="chat-bubble-outline" size={60} color={theme.colors.textLight} />
-              <Text style={styles(theme).emptyText}>Henüz mesaj yok</Text>
-              <Text style={styles(theme).emptySubtext}>Sohbete başlamak için bir mesaj gönder</Text>
+              <Text style={styles(theme).emptyText}>{t('no_messages_yet')}</Text>
+              <Text style={styles(theme).emptySubtext}>{t('start_conversation')}</Text>
             </View>
           }
         />
@@ -412,7 +493,7 @@ const ChatScreen = () => {
             style={styles(theme).input}
             value={message}
             onChangeText={setMessage}
-            placeholder="Mesaj yazın..."
+            placeholder={t('type_message')}
             placeholderTextColor={theme.colors.textLight}
             multiline
             maxLength={1000}
@@ -425,11 +506,7 @@ const ChatScreen = () => {
             onPress={sendMessage}
             disabled={!message.trim() || sending}
           >
-            {sending ? (
-              <ActivityIndicator size="small" color={theme.colors.white} />
-            ) : (
-              <MaterialIcons name="send" size={24} color={theme.colors.white} />
-            )}
+            <MaterialIcons name="send" size={24} color={theme.colors.white} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -487,6 +564,7 @@ const styles = (theme: ThemeType) => StyleSheet.create({
   headerName: {
     ...theme.textStyles.header3,
     color: theme.colors.textDark,
+    fontWeight: 'bold',
   },
   headerStatus: {
     ...theme.textStyles.bodySmall,
@@ -540,8 +618,7 @@ const styles = (theme: ThemeType) => StyleSheet.create({
   },
   timestamp: {
     ...theme.textStyles.bodySmall,
-    marginTop: 4,
-    alignSelf: 'flex-end',
+    marginTop: 0,
   },
   myTimestamp: {
     color: 'rgba(255, 255, 255, 0.7)',

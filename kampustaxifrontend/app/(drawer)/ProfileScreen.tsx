@@ -11,19 +11,18 @@ import {
   ScrollView,
   Share,
   Alert,
-  useColorScheme
+  StatusBar
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-
-// Local imports
-import { Review, Post, RideHistoryItem, PriceEstimate } from '@/components';
-import { Card, Header, Button, Badge } from '@/components/ui';
+import { Review, Post, RideHistoryItem } from '@/components';
+import { Card } from '@/components/ui';
 import { BASE_URL } from '@/env';
-import { lightTheme, darkTheme, ThemeType } from '@/styles/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { ThemeType } from '@/styles/theme';
+import { useTranslation } from 'react-i18next';
 
-// Types definition
 interface ProfileData {
   id: string;
   name: string;
@@ -58,25 +57,16 @@ interface Review {
 }
 
 export default function ProfileScreen() {
-  // State
+  const { t } = useTranslation();
+  const { theme, isDark } = useTheme();
+  const router = useRouter();
+
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [visiblePosts, setVisiblePosts] = useState<number>(2);
   const [isPostsLoading, setIsPostsLoading] = useState<boolean>(false);
+  const [profilePhoto, setProfilePhoto] = useState<string>('');
 
-  // Get the device color scheme
-  const colorScheme = useColorScheme();
-
-  // Use the appropriate theme based on color scheme
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-
-
-
-  const router = useRouter();
-
-  /**
-   * Fetch user profile data and profile photo
-   */
   useEffect(() => {
     fetchProfile();
   }, []);
@@ -105,70 +95,46 @@ export default function ProfileScreen() {
       const data = await response.json();
       if (response.ok) {
         setProfile(data);
+        if (data.id) {
+          setProfilePhoto(`${BASE_URL}/api/users/profilePhoto/${data.id}`);
+        }
       } else {
-        console.error('Profile fetch error:', data.message);
-        Alert.alert('Error', 'Failed to load profile information');
+        Alert.alert(t('error'), t('error_load_profile_info'));
       }
     } catch (error) {
-      console.error('Error fetching profile:', error);
-      Alert.alert('Error', 'An error occurred while fetching your profile');
+      Alert.alert(t('error'), t('error_occurred'));
     } finally {
       setLoading(false);
     }
   };
 
-  /**
-   * Handle authentication errors
-   */
   const handleAuthError = async () => {
     await AsyncStorage.removeItem('token');
     router.push('/auth/login');
   };
 
-  /**
-   * Handle logout action
-   */
   const handleLogout = async () => {
     try {
       await AsyncStorage.removeItem('token');
-      router.push('/auth/login');
+      router.replace('/auth/login');
     } catch (error) {
-      console.error('Error during logout:', error);
-      Alert.alert('Error', 'Failed to log out. Please try again.');
+      Alert.alert(t('error'), t('error_logout'));
     }
   };
 
-  /**
-   * Handle share profile
-   */
   const handleShareProfile = () => {
     if (!profile) return;
-
-    const shareOptions = {
-      title: 'Share Profile',
-      message: `Travel with me, ${profile.name} ${profile.surname}!`,
-      url: `${BASE_URL}/profile/${profile.id}`
-    };
-
-    Share.share(shareOptions)
-      .catch(error => console.error('Error sharing profile:', error));
+    Share.share({
+      title: 'KampüsRoute Profili',
+      message: `${profile.name} ${profile.surname} ile KampüsRoute'ta yolculuk yap!`,
+      url: `${BASE_URL}/profile/${profile.id}` // Hypothetical deep link
+    });
   };
 
-  /**
-   * Navigate to post detail
-   */
   const navigateToPostDetail = (postId: string) => {
     router.push({ pathname: '/(drawer)/PostDetailScreen', params: { postId } });
   };
 
-  /**
-   * Show more posts
-   */
-  const handleShowMorePosts = () => {
-    setVisiblePosts(prev => prev + 2);
-  };
-
-  // Loading state
   if (loading) {
     return (
       <View style={styles(theme).loadingContainer}>
@@ -177,457 +143,264 @@ export default function ProfileScreen() {
     );
   }
 
-  // Error state
   if (!profile) {
     return (
       <View style={styles(theme).errorContainer}>
         <MaterialIcons name="error-outline" size={64} color={theme.colors.error} />
-        <Text style={styles(theme).errorText}>Error fetching profile information.</Text>
+        <Text style={styles(theme).errorText}>{t('error_profile_info')}</Text>
         <TouchableOpacity
           style={styles(theme).retryButton}
           onPress={fetchProfile}
           activeOpacity={0.7}
         >
-          <Text style={styles(theme).retryButtonText}>Try Again</Text>
+          <Text style={styles(theme).retryButtonText}>{t('retry')}</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles(theme).container}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Header */}
-      <View style={styles(theme).header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <MaterialIcons
-            name="arrow-back"
-            size={24}
-            color={theme.colors.textDark}
-          />
-        </TouchableOpacity>
-        <Text style={styles(theme).headerTitle}>Profil</Text>
-        <TouchableOpacity
-          onPress={() => router.push('/(drawer)/EditProfileScreen')}
-          activeOpacity={0.7}
-        >
-          <MaterialIcons
-            name="edit"
-            size={24}
-            color={theme.colors.textDark}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Profile Section */}
-      <Card style={styles(theme).profileSection}>
-        <View style={styles(theme).avatarContainer}>
-          <MaterialIcons name="person" size={60} color={theme.colors.textLight} />
-        </View>
-        <Text style={styles(theme).userName}>
-          {profile.name} {profile.surname}
-        </Text>
-
-        {/* Stats */}
-        <View style={styles(theme).statsContainer}>
-          <View style={styles(theme).statItem}>
-            <Text style={styles(theme).statValue}>
-              {profile.posts.length || 0}
-            </Text>
-            <Text style={styles(theme).statLabel}>Yolculuklar</Text>
-          </View>
-
-          <View style={styles(theme).statDivider} />
-
-          <View style={styles(theme).statItem}>
-            <View style={styles(theme).ratingContainer}>
-              {Array.from({ length: Math.floor(profile.stars || 0) }).map((_, index) => (
-                <MaterialIcons
-                  key={`star-${index}`}
-                  name="star"
-                  size={18}
-                  color={theme.colors.primary}
-                />
-              ))}
-              <Text style={styles(theme).statValue}>
-                {profile.stars || 0}
-              </Text>
-            </View>
-            <Text style={styles(theme).statLabel}>Değerlendirme</Text>
-          </View>
-
-          <View style={styles(theme).statDivider} />
-
-          <View style={styles(theme).statItem}>
-            <Text style={styles(theme).statValue}>
-              {Math.floor((new Date().getTime() - new Date(profile.createdAt).getTime()) / (1000 * 60 * 60 * 24))}
-            </Text>
-            <Text style={styles(theme).statLabel}>Gün</Text>
-          </View>
-        </View>
-      </Card>
-
-      {/* Account Information */}
-      <Text style={styles(theme).sectionTitle}>Hesap Bilgileri</Text>
-
-      <TouchableOpacity
-        style={styles(theme).menuItem}
-        onPress={() => router.push('/(drawer)/EditProfileScreen')}
-        activeOpacity={0.7}
+    <View style={styles(theme).container}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <ScrollView
+        contentContainerStyle={styles(theme).scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles(theme).menuIconContainer}>
-          <MaterialIcons
-            name="person"
-            size={24}
-            color={theme.colors.secondary}
-          />
-        </View>
-        <View style={styles(theme).menuTextContainer}>
-          <Text style={styles(theme).menuItemTitle}>Email</Text>
-          <Text style={styles(theme).menuItemSubtitle}>{profile.email}</Text>
-        </View>
-        <MaterialIcons
-          name="chevron-right"
-          size={24}
-          color={theme.colors.secondary}
-        />
-      </TouchableOpacity>
+        {/* Header */}
+        <View style={styles(theme).header}>
+          <View style={styles(theme).headerTop}>
+            <TouchableOpacity onPress={() => router.back()} style={styles(theme).iconButton}>
+              <MaterialIcons name="arrow-back" size={24} color={theme.colors.textDark} />
+            </TouchableOpacity>
+            <Text style={styles(theme).headerTitle}>{t('my_profile')}</Text>
+            <TouchableOpacity onPress={() => router.push('/(drawer)/EditProfileScreen')} style={styles(theme).iconButton}>
+              <MaterialIcons name="edit" size={24} color={theme.colors.primary} />
+            </TouchableOpacity>
+          </View>
 
-      <View style={styles(theme).menuItem}>
-        <View style={styles(theme).menuIconContainer}>
-          <MaterialIcons
-            name="school"
-            size={24}
-            color={theme.colors.secondary}
-          />
-        </View>
-        <View style={styles(theme).menuTextContainer}>
-          <Text style={styles(theme).menuItemTitle}>University</Text>
-          <Text style={styles(theme).menuItemSubtitle}>{profile.university}</Text>
-        </View>
-      </View>
-
-      <View style={styles(theme).menuItem}>
-        <View style={styles(theme).menuIconContainer}>
-          <MaterialIcons
-            name="business"
-            size={24}
-            color={theme.colors.secondary}
-          />
-        </View>
-        <View style={styles(theme).menuTextContainer}>
-          <Text style={styles(theme).menuItemTitle}>Faculty</Text>
-          <Text style={styles(theme).menuItemSubtitle}>{profile.faculty}</Text>
-        </View>
-      </View>
-
-      <View style={styles(theme).menuItem}>
-        <View style={styles(theme).menuIconContainer}>
-          <MaterialIcons
-            name="gesture"
-            size={24}
-            color={theme.colors.secondary}
-          />
-        </View>
-        <View style={styles(theme).menuTextContainer}>
-          <Text style={styles(theme).menuItemTitle}>Gender</Text>
-          <Text style={styles(theme).menuItemSubtitle}>{profile.gender}</Text>
-        </View>
-      </View>
-
-      <TouchableOpacity
-        style={styles(theme).menuItem}
-        onPress={handleShareProfile}
-        activeOpacity={0.7}
-      >
-        <View style={styles(theme).menuIconContainer}>
-          <MaterialIcons
-            name="link"
-            size={24}
-            color={theme.colors.secondary}
-          />
-        </View>
-        <View style={styles(theme).menuTextContainer}>
-          <Text style={styles(theme).menuItemTitle}>Share Profile</Text>
-        </View>
-        <MaterialIcons
-          name="share"
-          size={24}
-          color={theme.colors.secondary}
-        />
-      </TouchableOpacity>
-
-      {/* Reviews Section */}
-      <View style={styles(theme).section}>
-        <Text style={styles(theme).sectionTitle}>Değerlendirme</Text>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={true}
-          contentContainerStyle={styles(theme).reviewsContainer}
-        >
-          {profile.reviews && profile.reviews.length > 0 ? (
-            profile.reviews.map((review) => (
-              <Review
-                key={review.id}
-                comment={review.comment}
-                star={review.stars}
-                name={review.name}
-                surname={review.surname}
-                userId={review.userId}
+          <View style={styles(theme).profileCard}>
+            <View style={styles(theme).avatarContainer}>
+              <Image
+                source={{ uri: profilePhoto || 'https://via.placeholder.com/150' }}
+                style={styles(theme).avatar}
               />
-            ))
-          ) : (
-            <View style={styles(theme).emptyStateContainer}>
-              <MaterialIcons
-                name="rate-review"
-                size={48}
-                color={theme.colors.textLight}
-              />
-              <Text style={styles(theme).emptyStateText}>
-                Henüz değerlendirme yapılmadı.
-              </Text>
             </View>
-          )}
-        </ScrollView>
-      </View>
+            <Text style={styles(theme).userName}>{profile.name} {profile.surname}</Text>
+            <Text style={styles(theme).userRole}>{profile.university} • {profile.faculty}</Text>
 
-      {/* Shared Trips Section */}
-      <View style={styles(theme).section}>
-        <Text style={styles(theme).sectionTitle}>Paylaşılan Yolculuklar</Text>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={true}
-          contentContainerStyle={styles(theme).postsContainer}
-        >
-          {profile.posts && profile.posts.length > 0 ? (
-            <>
-              {profile.posts.slice(0, visiblePosts).map((post) => (
-                <View key={post.id} style={styles(theme).postWrapper}>
-                  <RideHistoryItem
-                    id={post.id}
-                    date={new Date(post.datetimeStart)}
-                    from={post.sourceAddress}
-                    to={post.destinationFaculty}
-                    status="completed"
-                    driverName={`${profile.name} ${profile.surname}`}
-                    onPress={() => navigateToPostDetail(post.id)}
-                  />
+            <View style={styles(theme).statsRow}>
+              <View style={styles(theme).statItem}>
+                <Text style={styles(theme).statValue}>{profile.posts.length}</Text>
+                <Text style={styles(theme).statLabel}>{t('trips_count')}</Text>
+              </View>
+              <View style={styles(theme).statDivider} />
+              <View style={styles(theme).statItem}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={styles(theme).statValue}>{profile.stars || 0}</Text>
+                  <MaterialIcons name="star" size={16} color={theme.colors.warning} style={{ marginLeft: 2 }} />
                 </View>
-              ))}
-
-              {profile.posts.length > visiblePosts && (
-                <TouchableOpacity
-                  style={styles(theme).showMoreButton}
-                  onPress={handleShowMorePosts}
-                  activeOpacity={0.7}
-                >
-                  <MaterialIcons
-                    name="refresh"
-                    size={24}
-                    color={theme.colors.white}
-                  />
-                </TouchableOpacity>
-              )}
-            </>
-          ) : (
-            <View style={styles(theme).emptyStateContainer}>
-              <MaterialIcons
-                name="directions-car"
-                size={48}
-                color={theme.colors.textLight}
-              />
-              <Text style={styles(theme).emptyStateText}>
-                No trips shared yet.
-              </Text>
+                <Text style={styles(theme).statLabel}>{t('rating')}</Text>
+              </View>
+              <View style={styles(theme).statDivider} />
+              <View style={styles(theme).statItem}>
+                <Text style={styles(theme).statValue}>
+                  {Math.floor((new Date().getTime() - new Date(profile.createdAt).getTime()) / (86400000))}
+                </Text>
+                <Text style={styles(theme).statLabel}>{t('days_member')}</Text>
+              </View>
             </View>
-          )}
+          </View>
+        </View>
 
-          {isPostsLoading && (
-            <ActivityIndicator
-              size="small"
-              color={theme.colors.primary}
-              style={styles(theme).loadingIndicator}
-            />
-          )}
-        </ScrollView>
-      </View>
+        {/* Menu Items */}
+        <View style={styles(theme).menuSection}>
+          <Text style={styles(theme).sectionTitle}>{t('account_info')}</Text>
 
-      {/* Shortcuts Section */}
-      <Text style={styles(theme).sectionTitle}>Kısayollar</Text>
-
-      <TouchableOpacity style={styles(theme).menuItem} activeOpacity={0.7}>
-        <View style={styles(theme).menuIconContainer}>
-          <MaterialIcons
-            name="home"
-            size={24}
-            color={theme.colors.primary}
+          <MenuRow
+            theme={theme}
+            icon="email"
+            title="Email"
+            subtitle={profile.email}
+            onPress={() => { }}
+            rightIcon={false}
+          />
+          <MenuRow
+            theme={theme}
+            icon="school"
+            title={t('university')}
+            subtitle={profile.university}
+            onPress={() => { }}
+            rightIcon={false}
+          />
+          <MenuRow
+            theme={theme}
+            icon="business"
+            title={t('faculty')}
+            subtitle={profile.faculty}
+            onPress={() => { }}
+            rightIcon={false}
+          />
+          <MenuRow
+            theme={theme}
+            icon="person"
+            title={t('gender')}
+            subtitle={profile.gender}
+            onPress={() => { }}
+            rightIcon={false}
+          />
+          <MenuRow
+            theme={theme}
+            icon="share"
+            title={t('share_profile')}
+            subtitle={t('share_with_friends')}
+            onPress={handleShareProfile}
+            rightIcon={true}
           />
         </View>
-        <View style={styles(theme).menuTextContainer}>
-          <Text style={styles(theme).menuItemTitle}>Evimi Seç</Text>
-        </View>
-        <MaterialIcons
-          name="add"
-          size={24}
-          color={theme.colors.textLight}
-        />
-      </TouchableOpacity>
 
-      <TouchableOpacity style={styles(theme).menuItem} activeOpacity={0.7}>
-        <View style={styles(theme).menuIconContainer}>
-          <MaterialIcons
-            name="work"
-            size={24}
-            color={theme.colors.primary}
-          />
+        <View style={styles(theme).section}>
+          <Text style={styles(theme).sectionTitle}>{t('shared_trips')}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: theme.spacing.lg }}>
+            {profile.posts.slice(0, visiblePosts).map((post) => (
+              <View key={post.id} style={{ width: 300, marginRight: 12 }}>
+                <RideHistoryItem
+                  id={post.id}
+                  date={new Date(post.datetimeStart)}
+                  from={post.sourceAddress}
+                  to={post.destinationFaculty}
+                  status="completed"
+                  driverName="Siz"
+                  onPress={() => navigateToPostDetail(post.id)}
+                />
+              </View>
+            ))}
+            {profile.posts.length === 0 && (
+              <Text style={styles(theme).emptyText}>{t('no_shared_trips')}</Text>
+            )}
+          </ScrollView>
         </View>
-        <View style={styles(theme).menuTextContainer}>
-          <Text style={styles(theme).menuItemTitle}>İş Yerini Seç</Text>
-        </View>
-        <MaterialIcons
-          name="add"
-          size={24}
-          color={theme.colors.textLight}
-        />
-      </TouchableOpacity>
 
-      {/* Join Date */}
-      <View style={styles(theme).joinedContainer}>
-        <Text style={styles(theme).joinedText}>
-          Joined {new Date(profile.createdAt).toLocaleDateString('tr-TR', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-          })}
-        </Text>
-      </View>
+        <TouchableOpacity style={styles(theme).logoutButton} onPress={handleLogout}>
+          <MaterialIcons name="logout" size={20} color={theme.colors.error} />
+          <Text style={styles(theme).logoutText}>{t('logout')}</Text>
+        </TouchableOpacity>
 
-      {/* Logout Button */}
-      <TouchableOpacity
-        style={styles(theme).logoutButton}
-        onPress={handleLogout}
-        activeOpacity={0.7}
-      >
-        <MaterialIcons
-          name="logout"
-          size={20}
-          color={theme.colors.error}
-          style={styles(theme).logoutIcon}
-        />
-        <Text style={styles(theme).logoutButtonText}>Log Out</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <Text style={styles(theme).versionText}>{t('version')} 1.0.0 • KampüsRoute</Text>
+      </ScrollView>
+    </View>
   );
 }
 
-/**
- * Component styles using dynamic theme system
- * Convert to a function that accepts the current theme
- */
+const MenuRow = ({ theme, icon, title, subtitle, onPress, rightIcon }: any) => (
+  <TouchableOpacity style={styles(theme).menuItem} onPress={onPress} activeOpacity={0.7} disabled={!rightIcon}>
+    <View style={styles(theme).menuIconBox}>
+      <MaterialIcons name={icon} size={20} color={theme.colors.primary} />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={styles(theme).menuTitle}>{title}</Text>
+      {subtitle && <Text style={styles(theme).menuSubtitle}>{subtitle}</Text>}
+    </View>
+    {rightIcon && <MaterialIcons name="chevron-right" size={24} color={theme.colors.textLight} />}
+  </TouchableOpacity>
+);
+
 const styles = (theme: ThemeType) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  scrollContent: {
+    paddingBottom: theme.spacing['4xl'],
+  },
   loadingContainer: {
     flex: 1,
+    backgroundColor: theme.colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.background,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: theme.spacing.xl,
-    backgroundColor: theme.colors.background,
   },
   errorText: {
     ...theme.textStyles.body,
     color: theme.colors.error,
     textAlign: 'center',
-    marginTop: theme.spacing.md,
+    marginVertical: theme.spacing.lg,
   },
   retryButton: {
     backgroundColor: theme.colors.primary,
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-    marginTop: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
   },
   retryButtonText: {
-    ...theme.textStyles.button,
-    color: theme.colors.white,
+    color: 'white',
+    fontWeight: '600',
   },
+
   header: {
+    backgroundColor: theme.colors.card,
+    paddingTop: theme.spacing['4xl'],
+    borderBottomLeftRadius: theme.borderRadius['2xl'],
+    borderBottomRightRadius: theme.borderRadius['2xl'],
+    ...theme.shadows.md,
+    marginBottom: theme.spacing.lg,
+  },
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing['3xl'],
-    paddingBottom: theme.spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
   },
   headerTitle: {
     ...theme.textStyles.header2,
     color: theme.colors.textDark,
   },
-  profileSection: {
+  iconButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surface,
+  },
+  profileCard: {
     alignItems: 'center',
-    paddingVertical: theme.spacing.xl,
-    backgroundColor: theme.colors.white,
-    ...theme.shadows.base,
-    marginBottom: theme.spacing.md,
+    paddingBottom: theme.spacing.xl,
   },
   avatarContainer: {
-    backgroundColor: '#f1f1f1',
-    borderRadius: 40,
-    padding: 10,
     marginBottom: theme.spacing.md,
+    ...theme.shadows.sm,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-
-  },
-  avatarPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: theme.colors.border,
-    backgroundColor: '#f1f1f1',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    borderColor: theme.colors.background,
   },
   userName: {
     ...theme.textStyles.header2,
     color: theme.colors.textDark,
-    marginBottom: theme.spacing.sm,
+    marginBottom: 4,
   },
-  statsContainer: {
+  userRole: {
+    ...theme.textStyles.bodySmall,
+    color: theme.colors.textLight,
+    marginBottom: theme.spacing.lg,
+  },
+  statsRow: {
     flexDirection: 'row',
-    width: '85%',
-    marginTop: theme.spacing.md,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.md,
-    ...theme.shadows.sm,
+    width: '85%',
+    justifyContent: 'space-around',
   },
   statItem: {
-    flex: 1,
     alignItems: 'center',
+    flex: 1,
   },
   statValue: {
     ...theme.textStyles.header3,
@@ -636,134 +409,88 @@ const styles = (theme: ThemeType) => StyleSheet.create({
   statLabel: {
     ...theme.textStyles.caption,
     color: theme.colors.textLight,
-    marginTop: theme.spacing.xs,
+    marginTop: 2,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   statDivider: {
     width: 1,
-    height: '100%',
+    height: '80%',
     backgroundColor: theme.colors.border,
+    alignSelf: 'center',
   },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+
+  menuSection: {
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
   },
   sectionTitle: {
     ...theme.textStyles.header3,
     color: theme.colors.textDark,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    marginLeft: 4,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    backgroundColor: theme.colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    marginBottom: theme.spacing.sm,
+    ...theme.shadows.sm,
   },
-  menuIconContainer: {
+  menuIconBox: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: theme.colors.primaryTransparent,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.background,
     marginRight: theme.spacing.md,
   },
-  menuTextContainer: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  menuItemTitle: {
+  menuTitle: {
     ...theme.textStyles.body,
+    fontWeight: '600',
     color: theme.colors.textDark,
   },
-  menuItemSubtitle: {
+  menuSubtitle: {
     ...theme.textStyles.caption,
     color: theme.colors.textLight,
   },
+
   section: {
-    marginVertical: theme.spacing.md,
-    borderTopWidth: 4,
-    borderTopColor: theme.colors.background,
-    borderBottomWidth: 4,
-    borderBottomColor: theme.colors.background,
-    paddingBottom: theme.spacing.lg,
+    marginBottom: theme.spacing.xl,
   },
-  reviewsContainer: {
-    paddingHorizontal: theme.spacing.lg,
-  },
-  postsContainer: {
-    paddingHorizontal: theme.spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  postWrapper: {
-    width: 280,
-    marginRight: theme.spacing.md,
-  },
-  emptyStateContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 280,
-    height: 200,
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.borderRadius.lg,
-    marginLeft: theme.spacing.lg,
-  },
-  emptyStateText: {
+  emptyText: {
     ...theme.textStyles.body,
     color: theme.colors.textLight,
+    fontStyle: 'italic',
+    textAlign: 'center',
     marginTop: theme.spacing.md,
   },
-  showMoreButton: {
-    flexDirection: 'row',
-    width: 40,
-    height: 50,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: theme.spacing.md,
-    ...theme.shadows.base,
-  },
-  showMoreText: {
-    ...theme.textStyles.button,
-    color: theme.colors.white,
-    marginLeft: theme.spacing.xs,
-  },
-  loadingIndicator: {
-    marginLeft: theme.spacing.md,
-  },
-  joinedContainer: {
-    alignItems: 'center',
-    paddingVertical: theme.spacing.lg,
-    backgroundColor: theme.colors.background,
-    marginTop: theme.spacing.lg,
-  },
-  joinedText: {
-    ...theme.textStyles.caption,
-    color: theme.colors.textLight,
-  },
+
   logoutButton: {
     flexDirection: 'row',
-    margin: theme.spacing.lg,
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    ...theme.shadows.sm,
+    marginHorizontal: theme.spacing['4xl'],
+    paddingVertical: theme.spacing.md,
     borderWidth: 1,
     borderColor: theme.colors.error,
+    borderRadius: theme.borderRadius.full,
+    marginBottom: theme.spacing.lg,
+    backgroundColor: theme.colors.surface,
   },
-  logoutIcon: {
-    marginRight: theme.spacing.xs,
-  },
-  logoutButtonText: {
-    ...theme.textStyles.button,
+  logoutText: {
     color: theme.colors.error,
+    fontWeight: '700',
+    marginLeft: 8,
   },
-}); 
+  versionText: {
+    textAlign: 'center',
+    ...theme.textStyles.caption,
+    color: theme.colors.textLight,
+    opacity: 0.5,
+  },
+});

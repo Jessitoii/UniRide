@@ -1,34 +1,47 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Drawer } from 'expo-router/drawer';
-import { DrawerContentScrollView, DrawerItemList, DrawerContentComponentProps } from '@react-navigation/drawer';
-import { useRouter, usePathname } from 'expo-router';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Share } from 'react-native';
+import { DrawerContentScrollView, DrawerContentComponentProps } from '@react-navigation/drawer';
+import { useRouter } from 'expo-router';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Share, StatusBar } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
-import { BASE_URL } from '@/env'; // Adjust path if needed. @ aliased?
-import { useNotifications } from '@/contexts/NotificationContext'; // Adjust path
-import { userService } from '@/src/services/userService'; // Adjust path. src is at root.
+import { BASE_URL } from '@/env';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { userService } from '@/src/services/userService';
+import { useTheme } from '@/contexts/ThemeContext';
+import { ThemeType } from '@/styles/theme';
+import { DrawerActions } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
+    const { theme } = useTheme();
     const [profile, setProfile] = useState<any>(null);
     const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
     const { unreadCount } = useNotifications();
     const router = useRouter();
+    const { t } = useTranslation();
+    const s = styles(theme);
 
     useEffect(() => {
         const fetchProfile = async () => {
             try {
                 const token = await AsyncStorage.getItem('token');
-                if (token) {
-                    const data = await userService.getProfile();
-                    setProfile(data);
-                    setProfilePhoto(userService.getProfilePhotoUrl(data.id));
+                if (!token) {
+                    router.replace('/auth/login');
+                    return;
                 }
-            } catch (error) {
+
+                const data = await userService.getProfile();
+                setProfile(data);
+                setProfilePhoto(userService.getProfilePhotoUrl(data.id));
+            } catch (error: any) {
                 console.error('Profile fetch error:', error);
-                router.push('/auth/login');
+                if (error.response?.status === 401) {
+                    await AsyncStorage.removeItem('token');
+                    router.replace('/auth/login');
+                }
             }
         };
         fetchProfile();
@@ -50,223 +63,350 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
 
     if (!profile || !profilePhoto) {
         return (
-            <DrawerContentScrollView {...props}>
-                <ActivityIndicator size="large" color="#0000ff" style={{ marginTop: '50%' }} />
-                <Text style={{ textAlign: 'center', fontSize: 20, fontWeight: 'bold' }}>Yükleniyor...</Text>
+            <DrawerContentScrollView {...props} contentContainerStyle={s.loadingContainer}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
             </DrawerContentScrollView>
         );
     }
 
     return (
-        <DrawerContentScrollView {...props}>
-            <View style={styles.avatarContainer}>
-                <TouchableOpacity onPress={handleProfilePhotoChange} style={styles.avatarWrapper}>
-                    {/* Fallback if no photo */}
+        <DrawerContentScrollView {...props} style={s.drawerScrollView}>
+            <View style={s.avatarContainer}>
+                <TouchableOpacity onPress={handleProfilePhotoChange} style={s.avatarWrapper}>
                     {profilePhoto ? (
-                        <Image source={{ uri: profilePhoto }} style={styles.avatar} />
+                        <Image source={{ uri: profilePhoto }} style={s.avatar} />
                     ) : (
-                        <MaterialIcons name="person" size={80} color="#ccc" />
+                        <MaterialIcons name="person" size={80} color={theme.colors.textLight} />
                     )}
-                    <View style={styles.iconOverlay}>
-                        <MaterialIcons name="edit" size={24} color="#fff" />
+                    <View style={s.iconOverlay}>
+                        <MaterialIcons name="edit" size={16} color="#fff" />
                     </View>
                 </TouchableOpacity>
 
-                <View style={styles.userInfo}>
-                    <Text style={styles.userName}>{profile.name}</Text>
+                <View style={s.userInfo}>
+                    <Text style={s.userName}>{profile.name}</Text>
                 </View>
-                <TouchableOpacity style={styles.viewProfileButton} onPress={() => router.push('/(drawer)/ProfileScreen')}>
-                    <Text style={styles.viewProfileText}>Profili Görüntüle</Text>
+                <TouchableOpacity style={s.viewProfileButton} onPress={() => router.push('/(drawer)/ProfileScreen')}>
+                    <Text style={s.viewProfileText}>{t('view_profile')}</Text>
                 </TouchableOpacity>
             </View>
-            <View style={styles.divider} />
+            <View style={s.divider} />
 
-            {/* Manual Drawer Items since we are customizing navigation */}
+            <DrawerItem
+                theme={theme}
+                icon="home"
+                label={t('home')}
+                onPress={() => router.push('/(drawer)/(tabs)/PassengerScreen')}
+            />
 
-            <TouchableOpacity style={styles.drawerButton} onPress={() => router.push('/(drawer)/(tabs)/PassengerScreen')}>
-                <MaterialIcons name='home' size={24} color='gray' />
-                <Text style={styles.drawerButtonText}>Ana Sayfa</Text>
+            <DrawerItem
+                theme={theme}
+                icon="notifications"
+                label={t('notifications')}
+                onPress={() => router.push('/(drawer)/NotificationsScreen')}
+                badge={unreadCount > 0 ? unreadCount : undefined}
+            />
+
+            <DrawerItem
+                theme={theme}
+                icon="person-add"
+                label={t('invite_friends')}
+                onPress={() => { Share.share({ url: `${BASE_URL}/profile/${profile.id}` }) }}
+            />
+
+            <DrawerItem
+                theme={theme}
+                icon="history"
+                label={t('travel_history')}
+                onPress={() => router.push('/(drawer)/TravelHistory')}
+            />
+
+            <DrawerItem
+                theme={theme}
+                icon="directions-car"
+                label={t('driver_panel')}
+                onPress={() => router.push('/(drawer)/DriverScreen')}
+            />
+
+            <DrawerItem
+                theme={theme}
+                icon="settings"
+                label={t('settings')}
+                onPress={() => router.push('/(drawer)/SettingsScreen')}
+            />
+
+            <View style={s.divider} />
+
+            <TouchableOpacity style={s.contactUsButton} onPress={() => { }}>
+                <MaterialIcons name='help-outline' size={24} color={theme.colors.primary} />
+                <Text style={s.contactUsText}>{t('contact_us')}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.drawerButton} onPress={() => router.push('/(drawer)/NotificationsScreen')}>
-                <View style={styles.drawerButtonIcon}>
-                    <MaterialIcons name='notifications' size={24} color='gray' />
-                    {unreadCount > 0 && (
-                        <View style={styles.badgeContainer}>
-                            <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-                        </View>
-                    )}
-                </View>
-                <Text style={styles.drawerButtonText}>Bildirimler</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.drawerButton} onPress={() => { Share.share({ url: `${BASE_URL}/profile/${profile.id}` }) }}>
-                <MaterialIcons name='person-add' size={24} color='gray' />
-                <Text style={styles.drawerButtonText}>Arkadaşları Davet Et</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.drawerButton} onPress={() => router.push('/(drawer)/TravelHistory')}>
-                <MaterialIcons name='history' size={24} color='gray' />
-                <Text style={styles.drawerButtonText}>Seyehat Geçmişi</Text>
-            </TouchableOpacity>
-
-            {/* Wallet Removed */}
-
-            <TouchableOpacity style={styles.drawerButton} onPress={() => router.push('/(drawer)/DriverScreen')}>
-                <MaterialIcons name='directions-car' size={24} color='gray' />
-                <Text style={styles.drawerButtonText}>Sürücü</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.drawerButton} onPress={() => router.push('/(drawer)/SettingsScreen')}>
-                <MaterialIcons name='settings' size={24} color='gray' />
-                <Text style={styles.drawerButtonText}>Ayarlar</Text>
-            </TouchableOpacity>
-            <View style={styles.divider} />
-            <TouchableOpacity style={styles.contactUsButton} onPress={() => { }}>
-                <MaterialIcons name='help-outline' size={24} color='gray' />
-                <Text style={styles.contactUsText}>İletişim</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.drawerButton} onPress={async () => {
+            <TouchableOpacity style={s.logoutButton} onPress={async () => {
                 await AsyncStorage.removeItem('token');
                 router.replace('/auth/login');
             }}>
-                <Text>Çıkış Yap</Text>
+                <MaterialIcons name="logout" size={20} color={theme.colors.error} />
+                <Text style={s.logoutText}>{t('logout')}</Text>
             </TouchableOpacity>
-            <View style={{ padding: 16, marginTop: 'auto' }}>
-                <Text style={{ fontSize: 10, color: 'gray', textAlign: 'center' }}>
-                    Bu platform, ticari olmayan, öğrenciler arası bir dayanışma ağıdır.
+
+            <View style={s.footer}>
+                <Text style={s.footerText}>
+                    KampüsRoute v1.0.0
+                </Text>
+                <Text style={[s.footerText, { fontSize: 10, marginTop: 4 }]}>
+                    {t('student_network_slogan')}
                 </Text>
             </View>
         </DrawerContentScrollView>
     );
 }
 
-export default function DrawerLayout() {
+const DrawerItem = ({ theme, icon, label, onPress, badge }: any) => {
+    const s = styles(theme);
     return (
-        <GestureHandlerRootView style={{ flex: 1 }}>
+        <TouchableOpacity style={s.drawerButton} onPress={onPress}>
+            <View style={s.drawerButtonIcon}>
+                <MaterialIcons name={icon} size={24} color={theme.colors.textDark} />
+                {badge && (
+                    <View style={s.badgeContainer}>
+                        <Text style={s.badgeText}>{badge > 9 ? '9+' : badge}</Text>
+                    </View>
+                )}
+            </View>
+            <Text style={s.drawerButtonText}>{label}</Text>
+        </TouchableOpacity>
+    );
+};
+
+export default function DrawerLayout() {
+    const { t } = useTranslation();
+    const { theme, isDark } = useTheme();
+
+    return (
+        <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
             <Drawer
                 drawerContent={(props) => <CustomDrawerContent {...props} />}
-                screenOptions={{
-                    headerShown: false,
-                    drawerStyle: { width: '80%' },
+                screenOptions={({ navigation }) => ({
+                    headerShown: true, // Enable global header for the drawer
+                    headerStyle: {
+                        backgroundColor: theme.colors.card,
+                        borderBottomWidth: 1,
+                        borderBottomColor: theme.colors.border,
+                        shadowColor: 'transparent', // Remove shadow
+                        elevation: 0,
+                    },
+                    headerTintColor: theme.colors.textDark,
+                    headerTitleStyle: {
+                        ...theme.textStyles.header3,
+                        color: theme.colors.textDark,
+                    },
+                    drawerStyle: {
+                        width: '80%',
+                        backgroundColor: theme.colors.card,
+                    },
                     overlayColor: 'rgba(0, 0, 0, 0.5)',
-                }}
+                    headerLeft: () => (
+                        <TouchableOpacity
+                            onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
+                            style={{ padding: theme.spacing.lg, marginLeft: -theme.spacing.sm }}
+                        >
+                            <MaterialIcons name="menu" size={28} color={theme.colors.textDark} />
+                        </TouchableOpacity>
+                    ),
+                    headerTitleAlign: 'center',
+                })}
             >
-                <Drawer.Screen name="(tabs)" options={{ headerShown: false, drawerLabel: 'Home' }} />
-                {/* Hide other screens from the auto-generated drawer list if we are using custom content, 
-            but CustomDrawerContent handles the UI so we might not need to hide them explicitly 
-            unless we use <DrawerItemList>. We are NOT using <DrawerItemList>. 
-            So we just need to register them. 
-        */}
+                <Drawer.Screen
+                    name="(tabs)"
+                    options={{
+                        headerShown: false, // Header is now handled by the Tabs navigator
+                        drawerLabel: t('home')
+                    }}
+                />
+
+                {/* 
+                  Other screens in the drawer stack should NOT show the double header 
+                  if they have their own headers or if we want to hide the drawer header for them.
+                  Usually, detailed screens (like Profile, DriverScreen) are part of the navigation stack 
+                  and might want to show a "Back" button instead of "Menu".
+                  
+                  However, in Expo Router, if they are defined as screens in the Drawer, 
+                  they will have the Drawer header by default unless we disable it.
+
+                  The user requested: "Ensure that nested Stack headers are disabled". 
+                  Since we are setting screenOptions in <Drawer>, it applies to all direct children.
+                  
+                  Let's explicitly hide the header for specific children if needed, 
+                  or rely on the fact that `(tabs)` is the main one we want the hamburger for.
+                  
+                  Wait, `ProfileScreen`, `DriverScreen` are likely pushed on top of the stack 
+                  rather than being sibling drawer screens. 
+                  In Expo Router file-based nav, only files directly in `app/(drawer)` are drawer screens 
+                  if they are not `_layout.tsx`.
+                  
+                  Screens like `ProfileScreen.tsx` are in `app/(drawer)/`, so they ARE drawer screens.
+                  BUT, usually we want a Back button for them if navigated from Home. 
+                  If they are accessed via Drawer Menu, they are top-level.
+                  
+                  The user's prompt specifically asked for Menu button on "Passenger, Paylaş, and Seyehatlerim".
+                  These are in `(tabs)`.
+                  
+                  For other screens like `ProfileScreen`, if we want a back button, 
+                  we might need to set `headerShown: false` here and let them manage their own Stack header,
+                  OR configure the Drawer header to show a back button (which is tricky for Drawer navigator).
+                  
+                  Best practice: Use Drawer header for the Tabs. Use Stack header (or custom header) for Detail screens.
+                  So for `ProfileScreen`, etc., we should set `headerShown: false` in their options if they are to have their own custom headers (which they do, based on my refactoring of `ProfileScreen` having a custom header).
+                */}
+
+                <Drawer.Screen name="ProfileScreen" options={{ headerShown: false }} />
+                <Drawer.Screen name="NotificationsScreen" options={{ headerShown: false }} />
+                <Drawer.Screen name="DriverScreen" options={{ headerShown: false }} />
+                <Drawer.Screen name="TravelHistory" options={{ headerShown: false }} />
+                <Drawer.Screen name="EditProfileScreen" options={{ headerShown: false }} />
+                <Drawer.Screen name="SettingsScreen" options={{ headerShown: false }} />
+                <Drawer.Screen name="PostDetailScreen" options={{ headerShown: false }} />
+                <Drawer.Screen name="ChatScreen" options={{ headerShown: false }} />
+                <Drawer.Screen name="UserProfileScreen" options={{ headerShown: false }} />
+                <Drawer.Screen name="CarDetail" options={{ headerShown: false }} />
+                <Drawer.Screen name="LiveTrackingScreen" options={{ headerShown: false }} />
+
             </Drawer>
         </GestureHandlerRootView>
     );
 }
 
-const styles = StyleSheet.create({
-    drawerHeader: {
+const styles = (theme: ThemeType) => StyleSheet.create({
+    drawerScrollView: {
+        backgroundColor: theme.colors.card,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
         alignItems: 'center',
-        padding: 16,
-    },
-    profileImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        marginBottom: 8,
-    },
-    userName: {
-        fontSize: 20,
-        fontWeight: 'bold',
-    },
-    divider: {
-        height: 1,
-        backgroundColor: '#e0e0e0',
-        marginVertical: 8,
-    },
-    drawerButton: {
-        padding: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    drawerButtonIcon: {
-        position: 'relative',
-        width: 24,
-        height: 24,
-    },
-    drawerButtonText: {
-        fontSize: 16,
-        marginLeft: 8,
-    },
-    contactUsButton: {
-        padding: 16,
-        alignItems: 'center',
-    },
-    contactUsText: {
-        fontSize: 16,
-        color: '#FF4081',
+        backgroundColor: theme.colors.background,
     },
     avatarContainer: {
         alignItems: 'center',
-        marginVertical: 16,
+        marginVertical: theme.spacing.xl,
+        paddingHorizontal: theme.spacing.lg,
     },
     avatarWrapper: {
         position: 'relative',
-        backgroundColor: '#f1f1f1',
-        borderRadius: 80,
-        padding: 10,
+        backgroundColor: theme.colors.surface,
+        borderRadius: 50,
+        padding: 4,
+        ...theme.shadows.sm,
     },
     avatar: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        opacity: 0.7,
-    },
-    avatarPlaceholder: {
-        width: 100,
-        height: 100,
-        backgroundColor: 'rgba(0, 0, 0, 0.1)',
-        borderRadius: 50,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    avatarText: {
-        fontSize: 12,
-        color: '#000',
-        textAlign: 'center',
+        width: 80,
+        height: 80,
+        borderRadius: 40,
     },
     iconOverlay: {
         position: 'absolute',
         bottom: 0,
         right: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: theme.colors.primary,
         borderRadius: 12,
-        padding: 4,
+        padding: 6,
+        borderWidth: 2,
+        borderColor: theme.colors.card,
     },
     userInfo: {
         alignItems: 'center',
-        marginVertical: 16,
+        marginTop: theme.spacing.md,
+    },
+    userName: {
+        ...theme.textStyles.header3,
+        color: theme.colors.textDark,
+        textAlign: 'center',
     },
     viewProfileButton: {
-        alignItems: 'center',
+        marginTop: theme.spacing.sm,
+        paddingVertical: 4,
+        paddingHorizontal: 8,
     },
     viewProfileText: {
-        fontSize: 14,
-        color: '#4b39ef',
+        ...theme.textStyles.caption,
+        color: theme.colors.primary,
+        fontWeight: '600',
+    },
+    divider: {
+        height: 1,
+        backgroundColor: theme.colors.border,
+        marginVertical: theme.spacing.md,
+    },
+    drawerButton: {
+        paddingVertical: theme.spacing.md,
+        paddingHorizontal: theme.spacing.lg,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    drawerButtonIcon: {
+        position: 'relative',
+        marginRight: theme.spacing.md,
+    },
+    drawerButtonText: {
+        ...theme.textStyles.body,
+        color: theme.colors.textDark,
+        fontWeight: '500',
+    },
+    contactUsButton: {
+        paddingVertical: theme.spacing.md,
+        paddingHorizontal: theme.spacing.lg,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: theme.spacing.lg,
+        gap: 8,
+    },
+    contactUsText: {
+        ...theme.textStyles.body,
+        color: theme.colors.primary,
+        fontWeight: '600',
+    },
+    logoutButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: theme.spacing.md,
+        padding: theme.spacing.md,
+    },
+    logoutText: {
+        ...theme.textStyles.body,
+        color: theme.colors.error,
+        fontWeight: '600',
+        marginLeft: 8,
     },
     badgeContainer: {
         position: 'absolute',
-        top: -8,
-        right: -8,
-        backgroundColor: '#ff3b30',
+        top: -6,
+        right: -6,
+        backgroundColor: theme.colors.error,
         borderRadius: 10,
         minWidth: 16,
         height: 16,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 4,
+        borderWidth: 1,
+        borderColor: theme.colors.card,
     },
     badgeText: {
         color: 'white',
-        fontSize: 10,
+        fontSize: 9,
         fontWeight: 'bold',
+    },
+    footer: {
+        padding: theme.spacing.lg,
+        marginTop: theme.spacing.lg,
+        alignItems: 'center',
+    },
+    footerText: {
+        ...theme.textStyles.caption,
+        color: theme.colors.textLight,
     },
 });

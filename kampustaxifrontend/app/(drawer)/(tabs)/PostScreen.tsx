@@ -1,24 +1,40 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  StatusBar,
+  ActivityIndicator,
+} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MapView, { Polyline, Marker, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import polyline from 'polyline';
-import { GOOGLE_MAPS_API_KEY, BASE_URL } from '@/env';
+import { BASE_URL } from '@/env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter } from 'expo-router';
 import universities from '@/constants/Universities';
 import { DEFAULT_MAP_REGION } from '@/constants';
 import { mapStyle } from '@/styles/mapStyle';
 import { Modal } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Post } from '@/components';
+import { useTheme } from '@/contexts/ThemeContext';
+import { ThemeType } from '@/styles/theme';
+import { useTranslation } from 'react-i18next';
+import useDebounce from '@/src/hooks/useDebounce';
+import { useShortcuts } from '@/src/hooks/useShortcuts';
 
 const PostScreen = () => {
+  const { theme, isDark } = useTheme();
+  const { t } = useTranslation();
+  const { shortcuts, loading: shortcutsLoading } = useShortcuts();
   const [isLoading, setIsLoading] = useState(false);
-
   const [currentStep, setCurrentStep] = useState(1);
   const [sourceAddress, setSourceAddress] = useState('');
   const [destinationAddress, setDestinationAddress] = useState('');
@@ -46,44 +62,33 @@ const PostScreen = () => {
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
-  const [step1Region, setStep1Region] = useState();
+  const [step1Region, setStep1Region] = useState<any>(null);
   const [mapVisible, setMapVisible] = useState(false);
   const [post, setPost] = useState<any>(null);
   const router = useRouter();
 
+  // Debounce the source address input for API calls
+  const debouncedSourceAddress = useDebounce(sourceAddress, 500);
+
   const searchUniversities = (query: string) => {
     if (!query.trim()) {
-      // If empty query, show all universities
       return universities.map((uni) => ({ label: uni.name, value: uni.name }));
     }
-
-    // Filter universities that match the query (case insensitive)
-    const filtered = universities
-      .filter(uni =>
-        uni.name.toLowerCase().includes(query.toLowerCase())
-      )
-      .slice(0, 5) // Limit to top 5 results
+    return universities
+      .filter(uni => uni.name.toLowerCase().includes(query.toLowerCase()))
+      .slice(0, 5)
       .map(uni => ({ label: uni.name, value: uni.name }));
-
-    return filtered;
   };
 
   const searchFaculties = (query: string) => {
-    //if query is empty, show all faculties of selected university
     if (!query.trim()) {
       return universities.find(uni => uni.name === selectedUniversity)?.faculties.map(faculty => ({ label: faculty.name, value: faculty.name }));
     }
-
-    // Filter faculties that match the query (case insensitive) of selected university
-    const filtered = universities.find(uni => uni.name === selectedUniversity)?.faculties
-      .filter(faculty =>
-        faculty.name.toLowerCase().includes(query.toLowerCase())
-      )
-      .slice(0, 5) // Limit to top 5 results
+    return universities.find(uni => uni.name === selectedUniversity)?.faculties
+      .filter(faculty => faculty.name.toLowerCase().includes(query.toLowerCase()))
+      .slice(0, 5)
       .map(faculty => ({ label: faculty.name, value: faculty.name }));
-
-    return filtered;
-  }
+  };
 
   useEffect(() => {
     (async () => {
@@ -91,28 +96,23 @@ const PostScreen = () => {
       if (status === 'granted') {
         const location = await Location.getCurrentPositionAsync({});
         setSourceCoords(location.coords);
-        setInitialRegion({
-          ...DEFAULT_MAP_REGION,
-        });
       }
     })();
   }, []);
 
   const extractDistrict = (address: string) => {
-    const district = address.split(',')[1];
-    return district;
-  }
+    if (!address) return '';
+    const parts = address.split(',');
+    return parts.length > 1 ? parts[1].trim() : address;
+  };
 
   useEffect(() => {
-    const universitySuggestionsArray = searchUniversities(universityInput);
-    setUniversitySuggestions(universitySuggestionsArray);
+    setUniversitySuggestions(searchUniversities(universityInput));
   }, [universityInput]);
 
   useEffect(() => {
-    const facultySuggestionsArray = searchFaculties(facultyInput);
-    // Handle undefined case by providing empty array fallback
-    setFacultySuggestions(facultySuggestionsArray || []);
-  }, [facultyInput]);
+    setFacultySuggestions(searchFaculties(facultyInput) || []);
+  }, [facultyInput, selectedUniversity]);
 
   const handleStep1RegionChange = (region: any) => {
     setStep1Region(region);
@@ -125,8 +125,9 @@ const PostScreen = () => {
       if (selectedFaculty && destinationCoords) {
         fetchRoute();
         setCurrentStep(3);
+        setCurrentStep(3);
       } else {
-        Alert.alert("Please select both source and destination locations.");
+        Alert.alert(t('error'), t('select_locations_error'));
       }
     } else if (currentStep === 3) {
       setCurrentStep(4);
@@ -140,34 +141,46 @@ const PostScreen = () => {
     setCurrentStep((prevStep) => Math.max(prevStep - 1, 1));
   };
 
-  const fetchSuggestions = async (address: string, isSource: boolean) => {
-    if (address.length < 3) {
-      setSourceSuggestions([]);
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(address)}&key=${GOOGLE_MAPS_API_KEY}`
-      );
-      const data = await response.json();
-
-      if (data.status === 'OK') {
-        setSourceSuggestions(data.predictions);
-      }
-    } catch (error) {
-      console.error('Error fetching suggestions:', error);
-    }
-  };
-
+  // Nominatim Search Logic
   useEffect(() => {
-    fetchSuggestions(sourceAddress, true);
-  }, [sourceAddress]);
+    const fetchSuggestions = async () => {
+      if (!debouncedSourceAddress || debouncedSourceAddress.length < 3) {
+        setSourceSuggestions([]);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(debouncedSourceAddress)}&limit=5&addressdetails=1`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setSourceSuggestions(data.map((item: any) => ({
+            place_id: item.place_id,
+            description: item.display_name,
+            geometry: {
+              location: {
+                lat: parseFloat(item.lat),
+                lng: parseFloat(item.lon)
+              }
+            },
+            formatted_address: item.display_name
+          })));
+        }
+      } catch (error) {
+        console.error('Error fetching suggestions:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSuggestions();
+  }, [debouncedSourceAddress]);
 
   const handleLocationSelect = (event: any) => {
     const { latitude, longitude } = event.nativeEvent.coordinate;
     const selectedLocation = { latitude, longitude };
-
     Location.reverseGeocodeAsync(selectedLocation).then((response) => {
       if (response[0]) {
         const address = `${response[0].street || ''} ${response[0].name || ''}, ${response[0].district || ''}, ${response[0].city || ''}`;
@@ -191,7 +204,6 @@ const PostScreen = () => {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       });
-
       if (response[0]) {
         const address = `${response[0].street || ''} ${response[0].name || ''}, ${response[0].district || ''}, ${response[0].city || ''}`;
         if (currentStep === 1) {
@@ -207,30 +219,47 @@ const PostScreen = () => {
   const fetchRoute = async () => {
     if (sourceCoords && destinationCoords) {
       try {
-        const response = await fetch(
-          `https://maps.googleapis.com/maps/api/directions/json?origin=${sourceCoords.latitude},${sourceCoords.longitude}&destination=${destinationCoords.latitude},${destinationCoords.longitude}&alternatives=true&key=${GOOGLE_MAPS_API_KEY}`
-        );
+        // OSRM requires {longitude},{latitude} format
+        const start = `${sourceCoords.longitude},${sourceCoords.latitude}`;
+        const end = `${destinationCoords.longitude},${destinationCoords.latitude}`;
 
+        const url = `https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=full&geometries=polyline&alternatives=true`;
+        console.log('OSRM Request URL:', url);
+
+        const response = await fetch(url);
         const data = await response.json();
 
-        if (data.status === 'OK' && data.routes.length > 0) {
-          setRoutes(data.routes.slice(0, 2)); // Limit to two routes
+        if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+          // Transform OSRM routes to match our expected format
+          const transformedRoutes = data.routes.map((route: any, index: number) => ({
+            ...route,
+            summary: `Route ${index + 1}`, // OSRM doesn't always provide a summary like Google
+            legs: [{
+              distance: { text: (route.distance / 1000).toFixed(1) + ' km', value: route.distance },
+              duration: { text: Math.round(route.duration / 60) + ' mins', value: route.duration }
+            }],
+            overview_polyline: { points: route.geometry }
+          }));
+
+          setRoutes(transformedRoutes.slice(0, 2));
           setCurrentStep(3);
         } else {
-          console.error('Error fetching route:', data);
-          Alert.alert('No routes found. Please check your source and destination.');
+          console.error('OSRM Error:', data);
+          console.error('OSRM Error:', data);
+          Alert.alert(t('route_not_found'), data.message || data.code);
         }
       } catch (error) {
-        console.error('Error fetching route:', error);
-        Alert.alert('Error fetching route. Please try again.');
+        console.error('Fetch Route Error:', error);
+        Alert.alert(t('route_fetch_error'));
       }
     } else {
-      Alert.alert("Please select both source and destination locations.");
+      Alert.alert(t('error'), t('select_locations_error'));
     }
   };
 
   const handleRouteSelect = (route: any) => {
     setSelectedRoute(route);
+    // OSRM geometries are usually polyline5 compatible, same as Google
     const points = route.overview_polyline.points;
     const decodedCoords = polyline.decode(points).map(([latitude, longitude]) => ({
       latitude,
@@ -242,24 +271,18 @@ const PostScreen = () => {
   const handleCreatePost = async () => {
     try {
       if (!datetimeStart || isNaN(datetimeStart.getTime())) {
-        Alert.alert('Error', 'Invalid start date and time.');
+        Alert.alert(t('error'), t('invalid_start_time'));
         return;
       }
-
-      if (!selectedRoute || !selectedRoute.legs[0].duration.value) {
-        Alert.alert('Error', 'Please select a valid route.');
+      if (!selectedRoute) {
+        Alert.alert(t('error'), t('select_route_error'));
         return;
       }
-
-      // Calculate datetimeEnd based on the route's duration
-      const routeDurationInSeconds = selectedRoute.legs[0].duration.value; // Assuming duration is in seconds
-      const datetimeEnd = new Date(datetimeStart.getTime() + routeDurationInSeconds * 1000);
-
+      const routeDurationInSeconds = selectedRoute.legs[0].duration.value;
+      const end = new Date(datetimeStart.getTime() + routeDurationInSeconds * 1000);
       const token = await AsyncStorage.getItem('token');
-
-      // Clean sourceCoords and route by removing "/" characters
-      const cleanedSourceCoords = JSON.stringify(sourceCoords).replace(/\//g, '');
-      const cleanedRoute = JSON.stringify(routeCoordinates).replace(/\//g, '');
+      const cleanedSourceCoords = JSON.stringify(sourceCoords);
+      const cleanedRoute = JSON.stringify(routeCoordinates);
 
       const response = await fetch(`${BASE_URL}/api/posts`, {
         method: 'POST',
@@ -274,17 +297,13 @@ const PostScreen = () => {
           destinationFaculty: selectedFaculty,
           route: cleanedRoute,
           datetimeStart: datetimeStart.toISOString(),
-          datetimeEnd: datetimeEnd.toISOString(),
+          datetimeEnd: end.toISOString(),
         })
       });
 
       if (response.ok) {
         const newPost = await response.json();
-        console.log(newPost);
         setPost(newPost);
-      } else {
-        const errorText = await response.text();
-        console.error('Error creating post:', errorText);
       }
     } catch (error) {
       console.error('Error creating post:', error);
@@ -294,418 +313,301 @@ const PostScreen = () => {
   const handleDateChange = (event: any, selectedDate: Date | undefined) => {
     setShowDatePicker(false);
     if (selectedDate) {
-      const currentDate = selectedDate || travelDate;
-      setTravelDate(currentDate);
-      setDatetimeStart(new Date(currentDate.setHours(travelTime?.getHours() || 0, travelTime?.getMinutes() || 0)));
+      const d = selectedDate;
+      setTravelDate(d);
+      if (travelTime) {
+        setDatetimeStart(new Date(d.getFullYear(), d.getMonth(), d.getDate(), travelTime.getHours(), travelTime.getMinutes()));
+      } else {
+        setDatetimeStart(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0));
+      }
     }
   };
 
   const handleTimeChange = (event: any, selectedTime: Date | undefined) => {
     setShowTimePicker(false);
     if (selectedTime) {
-      const currentTime = selectedTime || travelTime;
-      setTravelTime(currentTime);
-      setDatetimeStart(new Date(travelDate!.setHours(currentTime.getHours(), currentTime.getMinutes())));
+      setTravelTime(selectedTime);
+      if (travelDate) {
+        setDatetimeStart(new Date(travelDate.getFullYear(), travelDate.getMonth(), travelDate.getDate(), selectedTime.getHours(), selectedTime.getMinutes()));
+      }
     }
-  };
-
-  const calculateRouteTime = () => {
-    if (selectedRoute) {
-      const routeDuration = selectedRoute.duration; // Assuming duration is in seconds
-      const endDateTime = new Date(datetimeStart!.getTime() + routeDuration * 1000);
-      setDatetimeEnd(endDateTime);
-    }
-  };
-
-  useEffect(() => {
-    if (datetimeStart) {
-      calculateRouteTime();
-    }
-  }, [datetimeStart, selectedRoute]);
-
-  const handleRegionChange = (region: any) => {
-    setStep3Region(region);
   };
 
   const renderStep = () => {
+    const s = styles(theme);
     switch (currentStep) {
       case 1:
         return (
-          <View style={styles.stepContainer}>
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', width: '100%' }}>
-              <TouchableOpacity onPress={() => router.push('/(drawer)/(tabs)/PassengerScreen')}>
-                <MaterialIcons name="close" size={24} color="#4b39ef" />
-              </TouchableOpacity>
+          <View style={s.stepContainer}>
+            <View style={s.header}>
+              <Text style={s.headerText}>{t('step_1_title')}</Text>
             </View>
-            <View style={styles.header}>
-              <Text style={styles.headerText}>1. Başlangıç Konumunu Seç</Text>
-            </View>
-            <View style={styles.locationContainer}>
-              {/* Start location input */}
-              <View style={styles.inputRow}>
-                <View style={styles.markerContainer}>
-                  <View style={styles.purpleMarker} />
+            <View style={s.locationContainer}>
+              <View style={s.inputRow}>
+                <View style={s.markerContainer}>
+                  <View style={s.purpleMarker} />
                 </View>
                 <TextInput
-                  style={styles.locationInput}
-                  placeholder="Başlangıç Konumu"
+                  style={s.locationInput}
+                  placeholder={t('start_location_placeholder')}
+                  placeholderTextColor={theme.colors.textLight}
                   value={sourceAddress}
                   onChangeText={setSourceAddress}
-                  onFocus={() => {
-                  }}
                 />
               </View>
             </View>
-            <View style={styles.shortcutsContainer}>
+            <ScrollView style={s.shortcutsScroll}>
+              {/* Shortcuts Section */}
+              {!sourceAddress && shortcuts.length > 0 && (
+                <View style={s.shortcutsContainer}>
+                  <Text style={s.sectionTitle}>{t('saved_locations')}</Text>
+                  <FlatList
+                    horizontal
+                    data={shortcuts}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingHorizontal: 5, paddingVertical: 10 }}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={s.shortcutChip}
+                        onPress={() => {
+                          setSourceAddress(item.address);
+                          setSourceCoords({
+                            latitude: item.latitude,
+                            longitude: item.longitude
+                          });
+                        }}
+                      >
+                        <MaterialIcons
+                          name={item.label.toLowerCase().includes('home') ? 'home' : item.label.toLowerCase().includes('work') ? 'work' : 'place'}
+                          size={16}
+                          color={theme.colors.primary}
+                          style={{ marginRight: 8 }}
+                        />
+                        <Text style={s.shortcutChipText}>{item.label}</Text>
+                      </TouchableOpacity>
+                    )}
+                  />
+                </View>
+              )}
 
-              {sourceCoords && sourceSuggestions && sourceSuggestions.length > 0 ? sourceSuggestions.map((suggestion) => (
-                <ScrollView>
-                  <TouchableOpacity style={[styles.shortcutButton, { marginTop: 15 }]} onPress={async () => {
-                    setIsLoading(true);
-                    try {
-                      const response = await fetch(
-                        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${suggestion.place_id}&key=${GOOGLE_MAPS_API_KEY}`
-                      );
-                      const data = await response.json();
-                      if (data.status === 'OK') {
-                        const location = data.result.geometry.location;
-                        setSourceCoords({ latitude: location.lat, longitude: location.lng });
-                        setSourceAddress(data.result.formatted_address);
-                      }
-                    } catch (error) {
-                      console.error('Error setting start location:', error);
-                    } finally {
-                      setIsLoading(false);
-                    }
-                  }}>
-                    <View style={styles.shortcutIcon}>
-                      <MaterialIcons name="location-on" size={24} color="#4b39ef" />
-                    </View>
-                    <Text style={styles.shortcutText}>{suggestion.description}</Text>
+              {sourceAddress.length >= 3 && sourceSuggestions.length > 0 ? (
+                sourceSuggestions.map((suggestion) => (
+                  <TouchableOpacity
+                    key={suggestion.place_id}
+                    style={s.shortcutButton}
+                    onPress={() => {
+                      setSourceCoords({
+                        latitude: suggestion.geometry.location.lat,
+                        longitude: suggestion.geometry.location.lng
+                      });
+                      setSourceAddress(suggestion.formatted_address);
+                    }}
+                  >
+                    <MaterialIcons name="location-on" size={24} color={theme.colors.primary} />
+                    <Text style={s.shortcutText}>{suggestion.description}</Text>
                   </TouchableOpacity>
-                  <View style={styles.divider} />
-                </ScrollView>
-              )) : (
-                <View style={{ flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
-                  <TouchableOpacity style={styles.shortcutButton}>
-                    <View style={styles.shortcutIcon}>
-                      <MaterialIcons name="home" size={24} color="#4b39ef" />
-                    </View>
-                    <Text style={styles.shortcutText}>Evimi Seç</Text>
+                ))
+              ) : (
+                <View>
+                  <TouchableOpacity style={s.shortcutButton} onPress={useCurrentLocation}>
+                    <MaterialIcons name="my-location" size={24} color={theme.colors.primary} />
+                    <Text style={s.shortcutText}>{t('use_current_location')}</Text>
                   </TouchableOpacity>
-
-                  <TouchableOpacity style={[styles.shortcutButton, { marginLeft: 6 }]} onPress={useCurrentLocation}>
-                    <MaterialIcons name="location-on" size={24} color="#4b39ef" />
-                    <Text style={styles.shortcutText}>Mevcut konumu kullan</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={[styles.shortcutButton, { marginLeft: 6 }]} onPress={() => setMapVisible(true)}>
-                    <MaterialIcons name="map" size={24} color="#4b39ef" />
-                    <Text style={styles.shortcutText}>Haritada Konumu Seç</Text>
+                  <TouchableOpacity style={s.shortcutButton} onPress={() => setMapVisible(true)}>
+                    <MaterialIcons name="map" size={24} color={theme.colors.primary} />
+                    <Text style={s.shortcutText}>{t('select_on_map')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
-            </View>
+            </ScrollView>
 
-
-            {initialRegion && (
-              <Modal visible={mapVisible}>
-                <View style={styles.mapModal}>
-                  <MapView
-                    style={styles.map}
-                    initialRegion={initialRegion}
-                    onPress={handleLocationSelect}
-                    customMapStyle={mapStyle}
-                    onRegionChange={handleStep1RegionChange}
-                  >
-                    {sourceCoords && (
-                      <Marker
-                        coordinate={sourceCoords}
-                        title="Source"
-                        description="Başlangıç Konumu"
-                        image={require('@/assets/images/map-marker.png')}
-                      />
-                    )}
-
-                    {
-                      step1Region && (
-                        <Marker
-                          coordinate={step1Region}
-                          image={require('@/assets/images/map-marker-2.png')}
-                        />
-                      )
-                    }
-                  </MapView>
-                </View>
-                {
-                  step1Region && (
-                    <TouchableOpacity style={styles.button} onPress={async () => {
-                      setMapVisible(false);
-                      setSourceCoords(step1Region);
-                      //@ts-ignore
-                      const address = await Location.reverseGeocodeAsync({ latitude: step1Region.latitude, longitude: step1Region.longitude });
-                      setSourceAddress(address?.[0]?.formattedAddress || '');
-                    }}>
-                      <Text style={styles.buttonText}>Tamamla</Text>
-                    </TouchableOpacity>
-                  )
-                }
-                <TouchableOpacity style={styles.button} onPress={() => setMapVisible(false)}>
-                  <Text style={styles.buttonText}>Haritadan Çık</Text>
+            <Modal visible={mapVisible} onDismiss={() => setMapVisible(false)}>
+              <View style={s.mapModalContent}>
+                <MapView
+                  style={s.map}
+                  initialRegion={initialRegion}
+                  onPress={handleLocationSelect}
+                  customMapStyle={mapStyle}
+                  onRegionChange={handleStep1RegionChange}
+                >
+                  {sourceCoords && (
+                    <Marker coordinate={sourceCoords} image={require('@/assets/images/map-marker.png')} />
+                  )}
+                  {step1Region && (
+                    <Marker coordinate={step1Region} image={require('@/assets/images/map-marker-2.png')} />
+                  )}
+                </MapView>
+                <TouchableOpacity style={s.primaryButton} onPress={async () => {
+                  if (step1Region) {
+                    setSourceCoords(step1Region);
+                    const address = await Location.reverseGeocodeAsync(step1Region);
+                    setSourceAddress(address?.[0]?.formattedAddress || t('selected_location'));
+                  }
+                  setMapVisible(false);
+                }}>
+                  <Text style={s.primaryButtonText}>{t('confirm_location')}</Text>
                 </TouchableOpacity>
-              </Modal>
-            )}
+              </View>
+            </Modal>
 
-
-            <TouchableOpacity style={{ position: 'absolute', bottom: 50, right: 30 }} onPress={handleNextStep} disabled={!sourceAddress}>
-              <MaterialIcons name="arrow-forward" size={36} color="#4b39ef" />
+            <TouchableOpacity style={s.fab} onPress={handleNextStep} disabled={!sourceAddress}>
+              <MaterialIcons name="arrow-forward" size={36} color="white" />
             </TouchableOpacity>
           </View>
         );
       case 2:
         return (
-          <View style={styles.stepContainer}>
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', width: '100%' }}>
+          <View style={s.stepContainer}>
+            <View style={s.navRow}>
               <TouchableOpacity onPress={() => setCurrentStep(1)}>
-                <MaterialIcons name="arrow-back" size={24} color="#4b39ef" />
+                <MaterialIcons name="arrow-back" size={28} color={theme.colors.primary} />
               </TouchableOpacity>
             </View>
-            <View style={styles.header}>
-              <Text style={styles.headerText}>2. Hedef Konumunu Seç</Text>
+            <View style={s.header}>
+              <Text style={s.headerText}>{t('step_2_title')}</Text>
             </View>
-            <View style={styles.locationContainer}>
-              <View style={styles.inputRow}>
-                <View style={styles.markerContainer}>
-                  <View style={styles.purpleMarker} />
-                </View>
+            <View style={s.locationContainer}>
+              <View style={s.inputRow}>
+                <View style={s.markerContainer}><View style={s.purpleMarker} /></View>
                 <TextInput
-                  style={styles.locationInput}
-                  placeholder="Üniversite"
+                  style={s.locationInput}
+                  placeholder={t('university_placeholder')}
+                  placeholderTextColor={theme.colors.textLight}
                   value={universityInput}
                   onChangeText={setUniversityInput}
-                  onFocus={() => {
-                    setFacultySuggestions([]);
-                  }}
                 />
-
               </View>
-
-              <View style={styles.divider} />
-              <View style={styles.inputRow}>
-                <View style={styles.markerContainer}>
-                  <View style={styles.pinkMarker} />
-                </View>
+              <View style={s.divider} />
+              <View style={s.inputRow}>
+                <View style={s.markerContainer}><View style={s.pinkMarker} /></View>
                 <TextInput
-                  style={styles.locationInput}
-                  placeholder="Fakülte"
+                  style={s.locationInput}
+                  placeholder={t('faculty_placeholder')}
+                  placeholderTextColor={theme.colors.textLight}
                   value={facultyInput}
                   onChangeText={setFacultyInput}
-                  onFocus={() => {
-                    setUniversitySuggestions([]);
-                  }}
+                  editable={!!selectedUniversity}
                 />
               </View>
             </View>
-
-            {universitySuggestions && universitySuggestions.length > 0 && universitySuggestions.map((university: any) => (
-              <TouchableOpacity style={styles.shortcutButton} onPress={() => {
-                setSelectedUniversity(university.label);
-                setUniversityInput(university.label);
-                setFacultyInput('');
-              }}>
-                <View style={styles.shortcutIcon}>
-                  <MaterialIcons name="school" size={24} color="#e94e77" />
-                </View>
-                <Text style={styles.shortcutText}>{university.label}</Text>
-              </TouchableOpacity>
-            ))}
-
-            {
-              facultySuggestions && facultySuggestions.length > 0 && facultySuggestions.map((faculty: any) => (
-                <TouchableOpacity style={styles.shortcutButton} onPress={() => {
-                  setSelectedFaculty(faculty.label);
-                  setFacultyInput(faculty.label);
-                  setDestinationCoords(universities.find(uni => uni.name === selectedUniversity)?.faculties.find(fac => fac.name === faculty.label)?.location);
+            <ScrollView style={s.shortcutsScroll}>
+              {universityInput && universitySuggestions.length > 0 && universitySuggestions.map((u) => (
+                <TouchableOpacity key={u.label} style={s.shortcutButton} onPress={() => {
+                  setSelectedUniversity(u.label);
+                  setUniversityInput(u.label);
+                  setFacultyInput('');
                 }}>
-                  <View style={styles.shortcutIcon}>
-                    <MaterialIcons name="school" size={24} color="#4b39ef" />
-                  </View>
-                  <Text style={styles.shortcutText}>{faculty.label}</Text>
+                  <MaterialIcons name="school" size={24} color={theme.colors.secondary} />
+                  <Text style={s.shortcutText}>{u.label}</Text>
                 </TouchableOpacity>
-              ))
-            }
-
-
-            <TouchableOpacity style={{ position: 'absolute', bottom: 50, right: 30 }} onPress={handleNextStep} disabled={!selectedUniversity || !selectedFaculty}>
-              <MaterialIcons name="arrow-forward" size={48} color="#4b39ef" />
+              ))}
+              {selectedUniversity && facultySuggestions.length > 0 && facultySuggestions.map((f) => (
+                <TouchableOpacity key={f.label} style={s.shortcutButton} onPress={() => {
+                  setSelectedFaculty(f.label);
+                  setFacultyInput(f.label);
+                  const loc = universities.find(uni => uni.name === selectedUniversity)?.faculties.find(fac => fac.name === f.label)?.location;
+                  setDestinationCoords(loc);
+                }}>
+                  <MaterialIcons name="account-balance" size={24} color={theme.colors.primary} />
+                  <Text style={s.shortcutText}>{f.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={s.fab} onPress={handleNextStep} disabled={!selectedUniversity || !selectedFaculty}>
+              <MaterialIcons name="arrow-forward" size={36} color="white" />
             </TouchableOpacity>
           </View>
         );
       case 3:
         return (
-          <View style={styles.stepContainer}>
-            <TouchableOpacity style={{ justifyContent: 'flex-start', alignItems: 'flex-start', width: '100%' }} onPress={handlePreviousStep}>
-              <MaterialIcons name="arrow-back" size={28} color="#4b39ef" />
-            </TouchableOpacity>
-            <View style={styles.header}>
-              <Text style={styles.headerText}>3. Rota Seçimi</Text>
+          <View style={s.stepContainer}>
+            <View style={s.navRow}>
+              <TouchableOpacity onPress={handlePreviousStep}>
+                <MaterialIcons name="arrow-back" size={28} color={theme.colors.primary} />
+              </TouchableOpacity>
             </View>
-            {routes.length > 0 && sourceCoords && destinationCoords && (
-              <View style={styles.mapContainer}>
-                <MapView
-                  onRegionChange={handleRegionChange}
-                  customMapStyle={mapStyle}
-                  style={styles.map}
-                  initialRegion={{
-                    latitude: ((sourceCoords.latitude) + (destinationCoords.latitude)) / 2,
-                    longitude: ((sourceCoords.longitude) + (destinationCoords.longitude)) / 2,
-                    latitudeDelta: 0.0922,
-                    longitudeDelta: 0.0421,
-                  }}
-                >
-                  {selectedRoute && selectedRoute.overview_polyline && selectedRoute.overview_polyline.points && (
-                    <>
-                      <Polyline
-                        key={0}
-                        coordinates={polyline.decode(selectedRoute.overview_polyline.points).map(([latitude, longitude]) => ({
-                          latitude,
-                          longitude,
-                        }))}
-                        strokeWidth={8}
-                        style={{ zIndex: 0 }}
-                      />
-                      <Polyline
-                        key={1}
-                        coordinates={polyline.decode(selectedRoute.overview_polyline.points).map(([latitude, longitude]) => ({
-                          latitude,
-                          longitude,
-                        }))}
-                        strokeWidth={4}
-                        strokeColor={"#ff0d8e"}
-                        style={{ zIndex: 1 }}
-                      />
-                      <Circle
-                        center={{ latitude: polyline.decode(selectedRoute.overview_polyline.points)[0][0], longitude: polyline.decode(selectedRoute.overview_polyline.points)[0][1] }}
-                        radius={step3region.latitudeDelta * 3000}
-                        strokeColor="#ff0d8e"
-                        strokeWidth={6}
-                        fillColor="#ffffff"
-                        lineDashPattern={[10, 10]}
-                        style={{ zIndex: 2 }}
-                      />
-                      <Circle
-                        center={{ latitude: polyline.decode(selectedRoute.overview_polyline.points)[polyline.decode(selectedRoute.overview_polyline.points).length - 1][0], longitude: polyline.decode(selectedRoute.overview_polyline.points)[polyline.decode(selectedRoute.overview_polyline.points).length - 1][1] }}
-                        radius={step3region.latitudeDelta * 3000}
-                        strokeColor="#ff0d8e"
-                        strokeWidth={6}
-                        fillColor="#ffffff"
-                        lineDashPattern={[10, 10]}
-                        style={{ zIndex: 2 }}
-                      />
-                    </>
-                  )}
-                </MapView>
-              </View>
-            )}
-            <View style={styles.routeListContainer}>
-              <FlatList
-                data={routes}
-                keyExtractor={(item) => item.summary}
-                renderItem={({ item }) => (
-                  <>
-                    <TouchableOpacity
-                      style={styles.routeItem}
-                      onPress={() => handleRouteSelect(item)}
-                    >
-                      <View style={{ ...styles.circleSelector, alignSelf: 'center' }}>
-                        <View style={styles.circle} />
-                      </View>
-                      <View style={{ flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', marginLeft: 10 }}>
-                        <Text style={{ fontSize: 16, fontWeight: 'bold' }}>{item.summary}</Text>
-                        <Text style={{ fontSize: 14 }}>Mesafe: {item.legs[0].distance.text}</Text>
-                        <Text style={{ fontSize: 14 }}>Süre: {item.legs[0].duration.text.replace('hours', 'sa.').replace('mins', 'dk.').replace('seconds', 'sn.')}</Text>
-                      </View>
-                    </TouchableOpacity>
-                    <View style={styles.divider} />
-                  </>
+            <View style={s.header}>
+              <Text style={s.headerText}>{t('step_3_title')}</Text>
+            </View>
+            <View style={s.mapContainerSmall}>
+              <MapView
+                style={s.map}
+                customMapStyle={mapStyle}
+                initialRegion={{
+                  latitude: (sourceCoords.latitude + destinationCoords.latitude) / 2,
+                  longitude: (sourceCoords.longitude + destinationCoords.longitude) / 2,
+                  latitudeDelta: 0.1,
+                  longitudeDelta: 0.1,
+                }}
+              >
+                {selectedRoute && routeCoordinates.length > 0 && (
+                  <Polyline coordinates={routeCoordinates} strokeWidth={4} strokeColor={theme.colors.primary} />
                 )}
-              />
+                <Marker coordinate={sourceCoords} title={t('start_label')} />
+                <Marker coordinate={destinationCoords} title={t('destination_label')} />
+              </MapView>
             </View>
-
-            <TouchableOpacity style={{ position: 'absolute', bottom: 50, right: 30 }} onPress={handleNextStep} disabled={!selectedRoute}>
-              <MaterialIcons name="arrow-forward" size={48} color="#4b39ef" />
+            <FlatList
+              data={routes}
+              keyExtractor={(item) => item.summary}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[s.routeItem, selectedRoute?.summary === item.summary && s.selectedRouteItem]}
+                  onPress={() => handleRouteSelect(item)}
+                >
+                  <View style={s.routeInfo}>
+                    <Text style={s.routeSummary}>{item.summary}</Text>
+                    <Text style={s.routeDetails}>{item.legs[0].distance.text} • {item.legs[0].duration.text.replace('hours', 'sa').replace('mins', 'dk')}</Text>
+                  </View>
+                  {selectedRoute?.summary === item.summary && (
+                    <MaterialIcons name="check-circle" size={24} color={theme.colors.primary} />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity style={s.fab} onPress={handleNextStep} disabled={!selectedRoute}>
+              <MaterialIcons name="arrow-forward" size={36} color="white" />
             </TouchableOpacity>
-
           </View>
         );
       case 4:
         return (
-          <View style={styles.stepContainer}>
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', width: '100%' }}>
+          <View style={s.stepContainer}>
+            <View style={s.navRow}>
               <TouchableOpacity onPress={() => setCurrentStep(3)}>
-                <MaterialIcons name="arrow-back" size={24} color="#4b39ef" />
+                <MaterialIcons name="arrow-back" size={28} color={theme.colors.primary} />
               </TouchableOpacity>
             </View>
-            <View style={styles.header}>
-              <Text style={styles.headerText}>4. Yola Çıkış Zamanını Seç</Text>
+            <View style={s.header}>
+              <Text style={s.headerText}>{t('step_4_title')}</Text>
             </View>
-            <View style={styles.locationContainer}>
-              <View style={styles.inputRow}>
-                <View style={styles.markerContainer}>
-                  <View style={styles.purpleMarker} />
-                </View>
-                <TextInput style={styles.locationInput}
-                  onFocus={() => setShowDatePicker(true)}
-                  placeholder={"Yolculuk Gününüzü Belirleyin"}
-                  value={travelDate?.toDateString() || ''}
-                />
-              </View>
-              <View style={styles.divider} />
-              {showDatePicker && (
-                <DateTimePicker
-                  value={travelDate || new Date()}
-                  mode="date"
-                  display={'spinner'}
-                  onChange={handleDateChange}
-                />
-              )}
-
-              <View style={styles.inputRow}>
-                <View style={styles.markerContainer}>
-                  <View style={styles.pinkMarker} />
-                </View>
-                <TextInput style={styles.locationInput}
-                  onFocus={() => setShowTimePicker(true)}
-                  placeholder={"Yolculuk Saatinizi Belirleyin"}
-                  value={travelTime?.toLocaleTimeString() || ''}
-                />
-              </View>
-              <View style={styles.divider} />
-              {showTimePicker && (
-                <DateTimePicker
-                  value={travelTime || new Date()}
-                  mode="time"
-                  display={'spinner'}
-                  onChange={handleTimeChange}
-                />
-              )}
-
+            <View style={s.dateTimeContainer}>
+              <TouchableOpacity style={s.dateTimeButton} onPress={() => setShowDatePicker(true)}>
+                <MaterialIcons name="event" size={24} color={theme.colors.primary} />
+                <Text style={s.dateTimeButtonText}>{travelDate ? travelDate.toLocaleDateString() : t('select_date')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.dateTimeButton} onPress={() => setShowTimePicker(true)}>
+                <MaterialIcons name="access-time" size={24} color={theme.colors.primary} />
+                <Text style={s.dateTimeButtonText}>{travelTime ? travelTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : t('select_time')}</Text>
+              </TouchableOpacity>
             </View>
-
-            <TouchableOpacity style={styles.button} onPress={handleNextStep} disabled={!selectedRoute || !travelDate || !travelTime}>
-              <Text style={styles.buttonText}>Paylaş</Text>
+            {showDatePicker && (
+              <DateTimePicker value={travelDate || new Date()} mode="date" display="default" onChange={handleDateChange} />
+            )}
+            {showTimePicker && (
+              <DateTimePicker value={travelTime || new Date()} mode="time" display="default" onChange={handleTimeChange} />
+            )}
+            <TouchableOpacity style={s.primaryButton} onPress={handleNextStep} disabled={!travelDate || !travelTime}>
+              <Text style={s.primaryButtonText}>{t('share_ride')}</Text>
             </TouchableOpacity>
           </View>
         );
       case 5:
         return (
-          <View style={styles.confirmationContainer}>
-            <View style={styles.header}>
-              <View style={styles.checkCircleContainer}>
-                <MaterialIcons name="check-circle" size={48} color="green" />
-                <Text style={styles.headerText}>Yolculuğunuz Başarıyla Oluşturuldu!</Text>
-              </View>
-            </View>
+          <View style={s.confirmationContainer}>
+            <MaterialIcons name="check-circle" size={100} color={theme.colors.success} />
+            <Text style={s.confirmationTitle}>{t('ride_shared_success')}</Text>
             {post && (
               <Post
                 id={post.id}
@@ -719,372 +621,225 @@ const PostScreen = () => {
                 userId={post.userId}
                 stars={post.user.stars}
                 userLocation={null}
-                //@ts-ignore
-                onPress={() => { router.push({ pathname: '/(drawer)/PostDetailScreen', params: { postId: post.id, userLocation: JSON.stringify(post.userLocation) } }) }}
+                onPress={() => { router.push({ pathname: '/(drawer)/PostDetailScreen', params: { postId: post.id } }) }}
               />
             )}
-            <View style={styles.shareButtonContainer}>
-              <TouchableOpacity style={styles.shareButton}>
-                <MaterialIcons name="share" size={24} color="white" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.confirmationTextContainer}>
-              <Text style={styles.confirmationText}>Yolculuğunuz başarıyla oluşturuldu!</Text>
-            </View>
-            <TouchableOpacity style={styles.button} onPress={() => {
-              router.push('/(drawer)/(tabs)/PassengerScreen');
-              setCurrentStep(1)
-            }}>
-              <Text style={styles.buttonText}>Yolculukları Görüntüle</Text>
+            <TouchableOpacity style={s.primaryButton} onPress={() => { router.push('/(drawer)/(tabs)/PassengerScreen'); setCurrentStep(1); }}>
+              <Text style={s.primaryButtonText}>{t('ok')}</Text>
             </TouchableOpacity>
           </View>
         );
-      default:
-        return null;
+      default: return null;
     }
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles(theme).container}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
       {renderStep()}
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = (theme: ThemeType) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background,
   },
   stepContainer: {
-    backgroundColor: 'white',
-    overflow: 'hidden',
+    flex: 1,
     padding: 20,
-    height: '100%',
-    width: '100%',
-    marginTop: 20,
-    marginBottom: 20,
-    marginLeft: 'auto',
+    backgroundColor: theme.colors.background,
+  },
+  navRow: {
+    paddingTop: 40,
+    marginBottom: 10,
   },
   header: {
-    marginTop: 10,
-    height: 82,
-    justifyContent: 'center',
-    paddingLeft: 16,
-    backgroundColor: 'white',
-    shadowColor: 'rgba(0, 0, 0, 0.12)',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
+    marginBottom: 20,
   },
   headerText: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: 'black',
-    alignSelf: 'flex-start',
+    ...theme.textStyles.header2,
+    color: theme.colors.textDark,
   },
   locationContainer: {
-    marginBottom: 20,
-    marginHorizontal: 20,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    backgroundColor: theme.colors.card,
     borderRadius: 15,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    padding: 10,
+    ...theme.shadows.sm,
+    marginBottom: 20,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 15,
-    paddingHorizontal: 10,
+    height: 50,
   },
   markerContainer: {
     width: 30,
     alignItems: 'center',
   },
   purpleMarker: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#e94e77',
-    borderWidth: 2,
-    borderColor: '#fff',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: theme.colors.primary,
   },
   pinkMarker: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#fff',
-    backgroundColor: '#4b39ef',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: theme.colors.secondary,
   },
   locationInput: {
     flex: 1,
-    fontSize: 16,
-    color: '#333',
+    ...theme.textStyles.body,
+    color: theme.colors.text,
+    paddingLeft: 10,
   },
-  map: {
-    height: 351,
-    borderRadius: 8,
-    marginBottom: 20,
-    width: '100%',
-    alignSelf: 'center',
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.divider,
+    marginVertical: 5,
   },
-  continueButton: {
-    position: 'absolute',
-    bottom: 40,
-    left: 0,
-    right: 0,
-    backgroundColor: '#4b39ef',
-    marginTop: 10,
-    padding: 10,
-    borderRadius: 15,
-    marginHorizontal: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  continueButtonText: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  backButton: {
-    paddingVertical: 10,
-    backgroundColor: 'gray',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  backButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  routeItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    padding: 8,
-    boxSizing: 'border-box',
-    textAlign: 'left',
-    fontSize: 12,
-    color: '#000',
-    fontFamily: 'Roboto',
-    marginLeft: 10,
-  },
-  mapContainer: {
-    borderWidth: 2,
-    borderColor: '#e94e77',
-    width: '100%',
-    alignSelf: 'center',
-    height: 351,
-    borderRadius: 8,
-    marginBottom: 20,
-    overflow: 'hidden',
-    shadowColor: 'rgba(0, 0, 0, 0.12)',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-  },
-  priceContainer: {
-    width: '70%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 10,
-  },
-  priceButtonContainer: {
-    backgroundColor: '#e94e77',
-    borderRadius: 8,
-    padding: 10,
-    marginHorizontal: 5,
-  },
-  priceButton: {
-    fontSize: 24,
-    color: 'white',
-  },
-  priceText: {
-    fontSize: 18,
-    marginHorizontal: 10,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 5,
-  },
-  datePicker: {
-    height: 40,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-    borderWidth: 1,
-    borderRadius: 5,
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    marginBottom: 10,
-  },
-  dateText: {
-    color: 'rgba(0, 0, 0, 0.5)',
-  },
-  confirmationContainer: {
+  shortcutsScroll: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  confirmationText: {
-    fontSize: 18,
-    marginBottom: 20,
-  },
-  suggestionList: {
-    position: 'absolute',
-    top: 40,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 10,
-  },
-  suggestionItem: {
-    padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'gray',
-  },
-  searchButton: {
-    position: 'absolute',
-    right: 10,
-  },
-  searchButtonText: {
-    fontSize: 24,
-    color: 'black',
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  mapModal: {
-    width: '100%',
-    height: '80%',
-  },
-  closeButton: {
-    marginTop: 20,
-    padding: 15,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  closeButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#4b39ef',
-    textAlign: 'center',
-  },
-  button: {
-    backgroundColor: '#4b39ef',
-    marginTop: 10,
-    padding: 10,
-    borderRadius: 15,
-    marginHorizontal: 20,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    fontSize: 16,
   },
   shortcutsContainer: {
-    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    ...theme.textStyles.bodySmall,
+    color: theme.colors.textLight,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  shortcutChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadows.sm
+  },
+  shortcutChipText: {
+    ...theme.textStyles.body,
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
   },
   shortcutButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-  },
-  shortcutIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.divider,
   },
   shortcutText: {
-    marginLeft: 10,
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
+    ...theme.textStyles.body,
+    color: theme.colors.text,
+    marginLeft: 15,
+    flex: 1,
   },
-  divider: {
-    height: 1,
+  mapModalContent: {
+    backgroundColor: theme.colors.background,
+    height: '90%',
     width: '100%',
-    alignSelf: 'center',
-    backgroundColor: '#e0e0e0',
-    marginLeft: 50,
-    marginRight: 50,
-  },
-  routeListContainer: {
-    flexDirection: 'row',
-    marginTop: 20,
-    marginBottom: 20,
-    alignSelf: 'center',
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
-  },
-  circleSelector: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#4b39ef',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circle: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: 'white',
-  },
-  confirmationTextContainer: {
-    marginTop: 20,
-    marginBottom: 20,
-    alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shareButtonContainer: {
-    marginTop: 20,
-    marginBottom: 20,
-    alignSelf: 'center',
-    alignItems: 'center',
-  },
-  shareButton: {
-    backgroundColor: '#4b39ef',
+    borderRadius: 20,
+    overflow: 'hidden',
     padding: 10,
+  },
+  map: {
+    flex: 1,
     borderRadius: 15,
-    marginHorizontal: 20,
   },
-  shareButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    fontSize: 16,
-  },
-  checkCircleContainer: {
+  primaryButton: {
+    backgroundColor: theme.colors.primary,
+    padding: 15,
+    borderRadius: 10,
     alignItems: 'center',
+    marginVertical: 10,
+  },
+  primaryButtonText: {
+    ...theme.textStyles.button,
+    color: 'white',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: theme.colors.primary,
     justifyContent: 'center',
+    alignItems: 'center',
+    ...theme.shadows.base,
+  },
+  mapContainerSmall: {
+    height: 200,
+    borderRadius: 15,
+    overflow: 'hidden',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  routeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: theme.colors.card,
+    borderRadius: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  selectedRouteItem: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryTransparent,
+  },
+  routeInfo: {
+    flex: 1,
+  },
+  routeSummary: {
+    ...theme.textStyles.header3,
+    color: theme.colors.text,
+  },
+  routeDetails: {
+    ...theme.textStyles.caption,
+    color: theme.colors.textLight,
+  },
+  dateTimeContainer: {
+    gap: 15,
+    marginBottom: 30,
+  },
+  dateTimeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: theme.colors.card,
+    borderRadius: 10,
+    ...theme.shadows.sm,
+  },
+  dateTimeButtonText: {
+    ...theme.textStyles.body,
+    color: theme.colors.text,
+    marginLeft: 15,
+  },
+  confirmationContainer: {
+    flex: 1,
+    padding: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+  },
+  confirmationTitle: {
+    ...theme.textStyles.header1,
+    color: theme.colors.textDark,
+    marginVertical: 20,
   },
 });
 

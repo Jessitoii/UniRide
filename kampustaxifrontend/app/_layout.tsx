@@ -1,4 +1,5 @@
 import { useFonts } from 'expo-font';
+import '../src/i18n'; // Initialize i18n
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -7,9 +8,12 @@ import { PaperProvider } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { SocketProvider } from '@/contexts/SocketContext';
+
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -31,11 +35,7 @@ export default function RootLayout() {
   useEffect(() => {
     const checkAuth = async () => {
       const token = await AsyncStorage.getItem('token');
-      if (token) {
-        setIsAuthenticated(true);
-      } else {
-        setIsAuthenticated(false);
-      }
+      setIsAuthenticated(!!token);
     };
     checkAuth();
   }, []);
@@ -60,17 +60,21 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider>
-      <NotificationProvider>
-        <PaperProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(drawer)" />
-            <Stack.Screen name="auth" />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style="auto" />
-        </PaperProvider>
-      </NotificationProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <NotificationProvider>
+          <SocketProvider>
+            <PaperProvider>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(drawer)" />
+                <Stack.Screen name="auth" />
+                <Stack.Screen name="+not-found" />
+              </Stack>
+              <StatusBar style="auto" />
+            </PaperProvider>
+          </SocketProvider>
+        </NotificationProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

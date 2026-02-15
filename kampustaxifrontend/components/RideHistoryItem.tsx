@@ -4,23 +4,23 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  useColorScheme
 } from 'react-native';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
-import { lightTheme, darkTheme, ThemeType } from '../src/styles/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { ThemeType } from '@/styles/theme';
 
 // Custom date formatter functions to avoid dependency on date-fns
 const formatDate = (date: Date): string => {
   const day = date.getDate().toString().padStart(2, '0');
   const month = date.toLocaleString('default', { month: 'short' });
   const year = date.getFullYear();
-  return `${day} ${month} ${year}`;
+  return `${day} ${month} ${year} `;
 };
 
 const formatTime = (date: Date): string => {
   const hours = date.getHours().toString().padStart(2, '0');
   const minutes = date.getMinutes().toString().padStart(2, '0');
-  return `${hours}:${minutes}`;
+  return `${hours}:${minutes} `;
 };
 
 interface RideHistoryItemProps {
@@ -29,7 +29,7 @@ interface RideHistoryItemProps {
   from: string;
   to: string;
 
-  status: 'completed' | 'cancelled' | 'ongoing';
+  status: 'completed' | 'cancelled' | 'ongoing' | 'upcoming';
   driverName?: string;
   passengerName?: string;
   isDriver?: boolean;
@@ -47,8 +47,7 @@ const RideHistoryItem: React.FC<RideHistoryItemProps> = ({
   isDriver = false,
   onPress,
 }) => {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme, isDark } = useTheme();
 
   const formattedDate = typeof date === 'string'
     ? new Date(date)
@@ -62,6 +61,8 @@ const RideHistoryItem: React.FC<RideHistoryItemProps> = ({
         return theme.colors.error;
       case 'ongoing':
         return theme.colors.primary;
+      case 'upcoming':
+        return theme.colors.info;
       default:
         return theme.colors.textLight;
     }
@@ -75,6 +76,8 @@ const RideHistoryItem: React.FC<RideHistoryItemProps> = ({
         return 'close-circle';
       case 'ongoing':
         return 'car-sport';
+      case 'upcoming':
+        return 'time-outline';
       default:
         return 'help-circle';
     }

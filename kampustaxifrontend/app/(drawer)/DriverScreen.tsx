@@ -1,23 +1,41 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, StatusBar, ActivityIndicator, RefreshControl } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  StatusBar,
+  ActivityIndicator,
+  RefreshControl
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { BASE_URL } from '@/env';
 import { MaterialIcons } from '@expo/vector-icons';
 import InterestedUser from '@/components/InterestedUser';
-import { theme } from '@/styles/theme';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import { ThemeType } from '@/styles/theme';
+import { useTranslation } from 'react-i18next';
 
 export default function DriverScreen() {
+  const { t } = useTranslation();
+  const { theme, isDark } = useTheme();
+  const router = useRouter();
+  const { unreadCount } = useNotifications();
+
   const [profile, setProfile] = useState<any>(null);
   const [profilePhoto, setProfilePhoto] = useState<string>(`${BASE_URL}/api/users/profilePhoto/default`);
   const [car, setCar] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const { unreadCount } = useNotifications();
-  const router = useRouter();
+
+  // Constants for state visualization
+  const isDriverActive = !!car;
 
   const fetchData = async () => {
     try {
@@ -27,7 +45,6 @@ export default function DriverScreen() {
         return;
       }
 
-      // Fetch profile data
       const profileResponse = await fetch(`${BASE_URL}/api/users/profile`, {
         method: 'GET',
         headers: {
@@ -39,16 +56,11 @@ export default function DriverScreen() {
       if (profileResponse.ok) {
         const data = await profileResponse.json();
         setProfile(data);
-
-        // Fetch profile photo if user exists
         if (data.id) {
           setProfilePhoto(`${BASE_URL}/api/users/profilePhoto/${data.id}`);
         }
-      } else {
-        console.error('Error fetching profile:', await profileResponse.json());
       }
 
-      // Fetch car information
       const carResponse = await fetch(`${BASE_URL}/api/cars`, {
         method: 'GET',
         headers: {
@@ -60,8 +72,6 @@ export default function DriverScreen() {
       if (carResponse.ok) {
         const carData = await carResponse.json();
         setCar(carData);
-      } else {
-        console.error('Error fetching car information:', await carResponse.json());
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -81,121 +91,100 @@ export default function DriverScreen() {
   };
 
   const navigateToScreen = (screen: string, params?: any) => {
-    if (params) {
-      router.push({ pathname: `/(drawer)/${screen}` as any, params });
-    } else {
-      router.push(`/(drawer)/${screen}` as any);
-    }
+    if (screen === 'NotificationsScreen') router.push('/(drawer)/NotificationsScreen');
+    else if (screen === 'UserProfileScreen') router.push({ pathname: '/(drawer)/UserProfileScreen', params });
+    else if (screen === 'CarDetail') router.push('/(drawer)/CarDetail'); // Assuming this route exists or is handled
+    else if (screen === 'TravelsScreen') router.push('/(drawer)/(tabs)/TravelsScreen');
+    else router.push(`/(drawer)/${screen}` as any);
   };
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={styles(theme).loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.loadingText}>Sürücü bilgileri yükleniyor...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View
-        style={styles.header}>
+    <View style={styles(theme).container}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <MaterialIcons name="arrow-back" size={24} color="#333" />
+      {/* Dynamic Header based on State */}
+      <View style={[styles(theme).header, isDriverActive ? styles(theme).headerActive : styles(theme).headerIdle]}>
+        <View style={styles(theme).headerTopRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles(theme).iconButton}>
+            <MaterialIcons name="arrow-back" size={24} color={theme.colors.textDark} />
           </TouchableOpacity>
-          <Text style={styles.headerText}>Sürücü Sayfası</Text>
-          <TouchableOpacity
-            style={styles.notificationButton}
-            onPress={() => navigateToScreen('NotificationsScreen')}>
-            <MaterialIcons name="notifications" size={24} color="#333" />
+          <Text style={styles(theme).headerTitle}>{t('driver_panel')}</Text>
+          <TouchableOpacity onPress={() => navigateToScreen('NotificationsScreen')} style={styles(theme).iconButton}>
+            <MaterialIcons name="notifications" size={24} color={theme.colors.textDark} />
             {unreadCount > 0 && (
-              <View style={styles.badgeContainer}>
-                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              <View style={styles(theme).badge}>
+                <Text style={styles(theme).badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
               </View>
             )}
           </TouchableOpacity>
         </View>
-      </View>
 
-      <ScrollView
-        style={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.colors.primary]} />
-        }>
-        <View style={styles.profileContainer}>
-          <TouchableOpacity
-            onPress={() => navigateToScreen('UserProfileScreen', { id: profile.id })}
-            style={styles.avatarContainer}>
-            <Image
-              source={{ uri: profilePhoto }}
-              style={styles.avatar}
-            />
+        {/* Profile Summary in Header */}
+        <View style={styles(theme).profileSummary}>
+          <TouchableOpacity onPress={() => navigateToScreen('UserProfileScreen', { id: profile.id })}>
+            <Image source={{ uri: profilePhoto }} style={styles(theme).avatar} />
           </TouchableOpacity>
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{profile?.name} {profile?.surname}</Text>
-            <Text style={styles.profileRole}>{profile?.bio || 'Sürücü'}</Text>
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <MaterialIcons name="star" size={16} color="#FFD700" />
-                <Text style={styles.statText}>{profile?.stars || '0'}</Text>
-              </View>
-              <View style={styles.statItem}>
-                <MaterialIcons name="directions-car" size={16} color={theme.colors.primary} />
-                <Text style={styles.statText}>{profile?.ridesCompleted || '0'} Yolculuk</Text>
-              </View>
+          <View style={styles(theme).profileTexts}>
+            <Text style={styles(theme).welcomeText}>{t('hello')} {profile?.name}</Text>
+            <View style={styles(theme).ratingRow}>
+              <MaterialIcons name="star" size={16} color={theme.colors.warning} />
+              <Text style={styles(theme).ratingText}>{profile?.stars || '0'}</Text>
+              <Text style={styles(theme).dotSeparator}>•</Text>
+              <Text style={styles(theme).ratingText}>{profile?.ridesCompleted || '0'} {t('trip')}</Text>
             </View>
           </View>
         </View>
+      </View>
 
-
-
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <MaterialIcons name="directions-car" size={24} color={theme.colors.primary} />
-            <Text style={styles.sectionTitle}>ARABAM</Text>
+      <ScrollView
+        style={styles(theme).content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+      >
+        {/* Active/Idle Status Card */}
+        <View style={styles(theme).card}>
+          <View style={styles(theme).cardHeader}>
+            <MaterialIcons name={isDriverActive ? "check-circle" : "pause-circle-filled"} size={24} color={isDriverActive ? theme.colors.success : theme.colors.textLight} />
+            <Text style={styles(theme).cardTitle}>{t('car_status')}</Text>
           </View>
 
           {car ? (
-            <View style={styles.carInfo}>
+            <View style={styles(theme).carContent}>
               <View>
-                <Text style={styles.carModel}>{car.brand} {car.model}</Text>
-                <Text style={styles.carDetail}>{car.plate}</Text>
-                <Text style={styles.carDetail}>{car.color}, {car.year}</Text>
+                <Text style={styles(theme).carTitle}>{car.brand} {car.model}</Text>
+                <Text style={styles(theme).carSubtitle}>{car.plate} • {car.color}</Text>
               </View>
-              <TouchableOpacity
-                style={styles.editButton}
-                onPress={() => navigateToScreen('CarDetail')}>
-                <Text style={styles.editButtonText}>Düzenle</Text>
+              <TouchableOpacity style={styles(theme).secondaryButton} onPress={() => navigateToScreen('CarDetail')}>
+                <Text style={styles(theme).secondaryButtonText}>{t('edit')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.noCarContainer}>
-              <Text style={styles.noCarText}>Henüz araç bilgileriniz yok</Text>
-              <TouchableOpacity
-                style={styles.addCarButton}
-                onPress={() => navigateToScreen('CarDetail')}>
-                <Text style={styles.addCarButtonText}>Araç Ekle</Text>
+            <View style={styles(theme).emptyState}>
+              <Text style={styles(theme).emptyText}>{t('add_car_to_be_driver')}</Text>
+              <TouchableOpacity style={styles(theme).primaryButton} onPress={() => navigateToScreen('CarDetail')}>
+                <Text style={styles(theme).primaryButtonText}>{t('add_car')}</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
 
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <MaterialIcons name="people" size={24} color={theme.colors.primary} />
-            <Text style={styles.sectionTitle}>İLGİLENEN YOLCULAR</Text>
+        {/* Interested Passengers */}
+        <View style={styles(theme).card}>
+          <View style={styles(theme).cardHeader}>
+            <MaterialIcons name="group" size={24} color={theme.colors.primary} />
+            <Text style={styles(theme).cardTitle}>{t('passenger_requests')}</Text>
           </View>
 
-          {profile?.interestedIn && profile.interestedIn.filter((interestedIn: any) =>
-            interestedIn.post && new Date(interestedIn.post.datetimeStart) > new Date()
-          ).length > 0 ? (
+          {profile?.interestedIn && profile.interestedIn.length > 0 ? (
             profile.interestedIn
-              .filter((interestedIn: any) =>
-                interestedIn.post && new Date(interestedIn.post.datetimeStart) > new Date()
-              )
+              .filter((i: any) => i.post && new Date(i.post.datetimeStart) > new Date())
               .map((interestedIn: any) => (
                 <InterestedUser
                   key={interestedIn.id}
@@ -207,288 +196,237 @@ export default function DriverScreen() {
                   route={JSON.parse(JSON.parse(interestedIn.post.route))}
                   userLocation={JSON.parse(interestedIn.locationCoordinates)}
                   stars={interestedIn.user.stars}
-                  matched={interestedIn.matched}
+                  matchedUserId={interestedIn.matched ? interestedIn.user.id : undefined}
+                  onMatchPress={() => router.push({ pathname: '/(drawer)/PostDetailScreen', params: { postId: interestedIn.post.id } })}
                 />
               ))
           ) : (
-            <View style={styles.emptyStateContainer}>
-              <MaterialIcons name="person-outline" size={50} color="#ccc" />
-              <Text style={styles.emptyStateText}>
-                Şu an güzergahınızla ilgilenen bir yolcu yok.
-              </Text>
+            <View style={styles(theme).emptyState}>
+              <MaterialIcons name="person-search" size={48} color={theme.colors.textLight} />
+              <Text style={styles(theme).emptyText}>{t('no_pending_requests')}</Text>
             </View>
           )}
         </View>
 
-        <View style={styles.actionsContainer}>
+        {/* Action Buttons */}
+        <View style={styles(theme).actionGrid}>
           <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => router.push('/(drawer)/(tabs)/PostScreen')}>
-            <MaterialIcons name="add-circle" size={24} color="#fff" />
-            <Text style={styles.actionButtonText}>Yeni Yolculuk Oluştur</Text>
+            style={styles(theme).actionCard}
+            onPress={() => router.push('/(drawer)/(tabs)/PostScreen')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles(theme).actionIcon, { backgroundColor: theme.colors.primary }]}>
+              <MaterialIcons name="add" size={32} color="white" />
+            </View>
+            <Text style={styles(theme).actionText}>{t('new_post')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionButton, styles.secondaryButton]}
-            onPress={() => navigateToScreen('TravelsScreen')}>
-            <MaterialIcons name="history" size={24} color="#fff" />
-            <Text style={styles.actionButtonText}>Yolculuk Geçmişi</Text>
+            style={styles(theme).actionCard}
+            onPress={() => navigateToScreen('TravelsScreen')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles(theme).actionIcon, { backgroundColor: theme.colors.secondary }]}>
+              <MaterialIcons name="history" size={32} color="white" />
+            </View>
+            <Text style={styles(theme).actionText}>{t('history')}</Text>
           </TouchableOpacity>
         </View>
+
       </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (theme: ThemeType) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
   loadingContainer: {
     flex: 1,
+    backgroundColor: theme.colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.background,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: theme.colors.text,
   },
   header: {
-    paddingTop: StatusBar.currentHeight || 40,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
+    paddingTop: theme.spacing['4xl'],
+    paddingBottom: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+    backgroundColor: theme.colors.card,
+    borderBottomLeftRadius: theme.borderRadius['2xl'],
+    borderBottomRightRadius: theme.borderRadius['2xl'],
+    ...theme.shadows.md,
+    zIndex: 10,
   },
-  headerContent: {
+  headerActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: theme.colors.primary,
+  },
+  headerIdle: {
+    borderBottomWidth: 2,
+    borderBottomColor: theme.colors.textLight,
+  },
+  headerTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  headerText: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
-    alignSelf: 'center',
-    justifyContent: 'flex-start',
-  },
-  notificationButton: {
-    position: 'relative',
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    marginBottom: theme.spacing.lg,
   },
-  badgeContainer: {
+  headerTitle: {
+    ...theme.textStyles.header2,
+    color: theme.colors.textDark,
+  },
+  iconButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surface,
+  },
+  badge: {
     position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: '#ff3b30',
-    borderRadius: 10,
+    top: -2,
+    right: -2,
+    backgroundColor: theme.colors.error,
+    borderRadius: 8,
     minWidth: 16,
     height: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
+    borderWidth: 1,
+    borderColor: theme.colors.card,
   },
   badgeText: {
     color: 'white',
     fontSize: 10,
     fontWeight: 'bold',
   },
-  scrollContent: {
-    flex: 1,
-  },
-  profileContainer: {
+  profileSummary: {
     flexDirection: 'row',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    margin: 16,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  avatarContainer: {
-    marginRight: 16,
+    alignItems: 'center',
   },
   avatar: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     borderWidth: 2,
-    borderColor: theme.colors.primary,
+    borderColor: theme.colors.surface,
+    marginRight: theme.spacing.md,
   },
-  profileInfo: {
+  profileTexts: {
+    justifyContent: 'center',
+  },
+  welcomeText: {
+    ...theme.textStyles.header3,
+    color: theme.colors.textDark,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  ratingText: {
+    ...theme.textStyles.caption,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  dotSeparator: {
+    marginHorizontal: 6,
+    color: theme.colors.textLight,
+  },
+
+  content: {
     flex: 1,
-    justifyContent: 'center',
+    padding: theme.spacing.lg,
   },
-  profileName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-    marginBottom: 4,
+  card: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    ...theme.shadows.sm,
   },
-  profileRole: {
-    fontSize: 14,
-    color: theme.colors.text,
-    marginBottom: 8,
-  },
-  statsContainer: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 16,
+  cardTitle: {
+    ...theme.textStyles.body,
+    fontWeight: '700',
+    color: theme.colors.textDark,
   },
-  statText: {
-    fontSize: 14,
-    color: theme.colors.text,
-    marginLeft: 4,
-  },
-  balanceCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    margin: 16,
-    marginTop: 0,
-    padding: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  balanceInfo: {
-    marginBottom: 12,
-  },
-  balanceLabel: {
-    fontSize: 14,
-    color: theme.colors.text,
-  },
-  balanceAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-  },
-  balanceButton: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.primary,
-    padding: 10,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  balanceButtonText: {
-    color: '#fff',
-    fontWeight: '500',
-    marginRight: 8,
-  },
-  sectionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    margin: 16,
-    marginTop: 0,
-    padding: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-    marginLeft: 8,
-  },
-  carInfo: {
+  carContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  carModel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: theme.colors.text,
+  carTitle: {
+    ...theme.textStyles.body,
+    fontWeight: '600',
+    color: theme.colors.textDark,
+    marginBottom: 2,
   },
-  carDetail: {
-    fontSize: 14,
-    color: theme.colors.text,
-    marginTop: 4,
-  },
-  editButton: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-  },
-  editButtonText: {
-    color: '#fff',
-    fontWeight: '500',
-  },
-  noCarContainer: {
-    alignItems: 'center',
-    padding: 16,
-  },
-  noCarText: {
-    fontSize: 14,
-    color: theme.colors.text,
-    marginBottom: 12,
-  },
-  addCarButton: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  addCarButtonText: {
-    color: '#fff',
-    fontWeight: '500',
-  },
-  emptyStateContainer: {
-    alignItems: 'center',
-    padding: 24,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: theme.colors.text,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  actionsContainer: {
-    margin: 16,
-    marginTop: 0,
-    marginBottom: 32,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.primary,
-    padding: 16,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
+  carSubtitle: {
+    ...theme.textStyles.caption,
+    color: theme.colors.textLight,
   },
   secondaryButton: {
-    backgroundColor: theme.colors.secondary,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
   },
-  actionButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
-    marginLeft: 8,
+  secondaryButtonText: {
+    ...theme.textStyles.caption,
+    color: theme.colors.textDark,
+    fontWeight: '600',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+  },
+  emptyText: {
+    ...theme.textStyles.body,
+    color: theme.colors.textLight,
+    marginBottom: theme.spacing.md,
+  },
+  primaryButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    borderRadius: theme.borderRadius.full,
+  },
+  primaryButtonText: {
+    ...theme.textStyles.button,
+    color: 'white',
+  },
+
+  actionGrid: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing['4xl'],
+  },
+  actionCard: {
+    flex: 1,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    alignItems: 'center',
+    ...theme.shadows.sm,
+  },
+  actionIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
+    ...theme.shadows.md,
+  },
+  actionText: {
+    ...theme.textStyles.body,
+    fontWeight: '600',
+    color: theme.colors.textDark,
   },
 });
-

@@ -97,6 +97,7 @@ const lightColors = {
     primary: '#FF00BF', // High-contrast Pink/Purple
     primaryLight: '#FF6ecf',
     primaryDark: '#c70093',
+    primaryTransparent: 'rgba(255, 0, 191, 0.1)',
 
     secondary: '#3300FF', // Deep Blue/Purple for contrast
     secondaryLight: '#664eff',
@@ -135,6 +136,7 @@ const darkColors = {
     primaryLight: '#FF6ecf',
     primaryDark: '#c70093',
 
+    primaryTransparent: 'rgba(255, 0, 191, 0.1)',
     secondary: '#3300FF',
     secondaryLight: '#664eff',
     secondaryDark: '#0000ba',
@@ -150,16 +152,16 @@ const darkColors = {
 
     white: '#FFFFFF',
     black: '#000000',
-    background: '#000000', // Deep black
+    background: '#000000',
     surface: '#121212',
-    card: '#1C1C1E', // Dark card
+    card: '#1C1C1E',
 
     text: '#FFFFFF',
-    textLight: '#EBEBF5', // 60% white
+    textLight: '#EBEBF5',
     textDark: '#FFFFFF',
 
     border: '#38383A',
-    divider: '#545458', // Separator
+    divider: '#545458',
 
     gradients: {
         primary: ['#FF00BF', '#3300FF'],

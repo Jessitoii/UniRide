@@ -7,12 +7,13 @@ import {
   StyleProp,
   ViewStyle,
   TextStyle,
-  useColorScheme,
   StatusBar,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { lightTheme, darkTheme, ThemeType } from '../../src/styles/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@/contexts/ThemeContext';
+import { ThemeType } from '@/styles/theme';
 
 interface HeaderProps {
   title: string;
@@ -36,9 +37,9 @@ export const Header: React.FC<HeaderProps> = ({
   backIconColor,
 }) => {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-  const styles = createStyles(theme);
+  const insets = useSafeAreaInsets();
+  const { theme, isDark } = useTheme();
+  const styles = createStyles(theme, insets.top);
 
   const handleBackPress = () => {
     if (onBackPress) {
@@ -59,9 +60,9 @@ export const Header: React.FC<HeaderProps> = ({
       ]}
     >
       <StatusBar
-        backgroundColor={transparent ? 'transparent' : theme.colors.white}
-        barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
-        translucent={transparent}
+        backgroundColor={transparent ? 'transparent' : theme.colors.card}
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        translucent={true}
       />
       <View style={styles.content}>
         <View style={styles.leftContainer}>
@@ -96,14 +97,16 @@ export const Header: React.FC<HeaderProps> = ({
   );
 };
 
-const createStyles = (theme: ThemeType) => StyleSheet.create({
+const createStyles = (theme: ThemeType, paddingTop: number) => StyleSheet.create({
   container: {
-    paddingTop: theme.spacing['3xl'],
+    paddingTop: paddingTop,
     width: '100%',
   },
   solidContainer: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.card,
     ...theme.shadows.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   transparentContainer: {
     backgroundColor: 'transparent',
@@ -115,7 +118,7 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
   },
   leftContainer: {
-    width: 40,
+    width: 48,
     alignItems: 'flex-start',
   },
   backButton: {
@@ -127,9 +130,10 @@ const createStyles = (theme: ThemeType) => StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     color: theme.colors.textDark,
+    fontWeight: '600',
   },
   rightContainer: {
-    width: 40,
+    width: 48,
     alignItems: 'flex-end',
   },
 });

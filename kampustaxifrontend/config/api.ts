@@ -15,15 +15,16 @@ const api = {
         },
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Network response was not ok');
+        return { error: data.message || 'Bir hata oluştu' };
       }
 
-      const data = await response.json();
       return { data };
     } catch (error: any) {
       console.error('API Error:', error);
-      return { error: error.message };
+      return { error: 'Sunucuya bağlanılamadı' };
     }
   },
 
@@ -37,15 +38,16 @@ const api = {
         body: JSON.stringify(data),
       });
 
+      const responseData = await response.json();
+
       if (!response.ok) {
-        throw new Error('Network response was not ok');
+        return { error: responseData.message || 'Bir hata oluştu' };
       }
 
-      const responseData = await response.json();
       return { data: responseData };
     } catch (error: any) {
       console.error('API Error:', error);
-      return { error: error.message };
+      return { error: 'Sunucuya bağlanılamadı' };
     }
   },
 };

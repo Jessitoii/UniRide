@@ -5,7 +5,7 @@ import { BASE_URL } from '../env';
 
 interface Notification {
   id: string;
-  type: 'ride' | 'match' | 'system' | 'payment';
+  type: 'ride' | 'match' | 'system';
   title: string;
   message: string;
   isRead: boolean;
@@ -23,13 +23,13 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
-export const NotificationProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
+export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     fetchNotifications();
-    
+
     // Set up polling every 30 seconds
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
@@ -45,16 +45,16 @@ export const NotificationProvider: React.FC<{children: React.ReactNode}> = ({ ch
       if (!token) return;
 
       const response = await fetch(`${BASE_URL}/api/notifications`, {
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
-      
+
       if (response.ok) {
         const data = await response.json();
-        
+
         const transformedData = data.map((item: any) => ({
-          id: item._id,
+          id: item.id,
           type: item.type,
           title: item.title,
           message: item.message,
@@ -62,7 +62,7 @@ export const NotificationProvider: React.FC<{children: React.ReactNode}> = ({ ch
           timestamp: new Date(item.createdAt),
           relatedId: item.relatedId || undefined
         }));
-        
+
         setNotifications(transformedData);
       }
     } catch (error) {
@@ -75,13 +75,13 @@ export const NotificationProvider: React.FC<{children: React.ReactNode}> = ({ ch
       const token = await AsyncStorage.getItem('token');
       const response = await fetch(`${BASE_URL}/api/notifications/${id}/read`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
       if (response.ok) {
-        setNotifications(notifications.map(notification => 
+        setNotifications(notifications.map(notification =>
           notification.id === id ? { ...notification, isRead: true } : notification
         ));
       }
@@ -95,7 +95,7 @@ export const NotificationProvider: React.FC<{children: React.ReactNode}> = ({ ch
       const token = await AsyncStorage.getItem('token');
       const response = await fetch(`${BASE_URL}/api/notifications/read-all`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
@@ -109,11 +109,11 @@ export const NotificationProvider: React.FC<{children: React.ReactNode}> = ({ ch
   };
 
   return (
-    <NotificationContext.Provider 
-      value={{ 
-        notifications, 
+    <NotificationContext.Provider
+      value={{
+        notifications,
         unreadCount,
-        fetchNotifications, 
+        fetchNotifications,
         markAsRead,
         markAllAsRead
       }}

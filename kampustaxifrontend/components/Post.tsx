@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, useColorScheme } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from 'react-native';
 import MapView, { Polyline, Marker, Circle } from 'react-native-maps';
 import { useRouter } from 'expo-router';
 import { BASE_URL } from '../env';
 import { lightTheme, darkTheme, ThemeType } from '../src/styles/theme';
 import { mapStyle } from '@/styles/mapStyle';
+import { useTheme } from '@/contexts/ThemeContext';
 import { MaterialIcons, Ionicons, FontAwesome5 } from '@expo/vector-icons';
 
 interface PostProps {
@@ -26,20 +27,32 @@ interface PostProps {
 }
 
 const Post: React.FC<PostProps> = ({ id, from, to, userName, date, startTime, endTime, route, userId, userLocation, onPress, stars }) => {
+  const { theme } = useTheme();
   const [profilePhoto, setProfilePhoto] = useState<string>('');
   const [initialRegion, setInitialRegion] = useState<any>(null);
   const [latitudeDelta, setLatitudeDelta] = useState<number>(0);
   const [longitudeDelta, setLongitudeDelta] = useState<number>(0);
   const router = useRouter();
   // Get the device color scheme
-  const colorScheme = useColorScheme();
 
   // Use the appropriate theme based on color scheme
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
 
   useEffect(() => {
     if (route) {
-      const decodedRoute = typeof route === 'string' ? JSON.parse(JSON.parse(route)) : route;
+      let decodedRoute = route;
+      // Handle stringified JSON (safe parsing with support for double-encoding)
+      if (typeof decodedRoute === 'string') {
+        try {
+          decodedRoute = JSON.parse(decodedRoute);
+          // If it's still a string (double encoded), parse again
+          if (typeof decodedRoute === 'string') {
+            decodedRoute = JSON.parse(decodedRoute);
+          }
+        } catch (e) {
+          console.error("Error parsing route JSON in Post component:", e);
+          decodedRoute = [];
+        }
+      }
 
       if (decodedRoute.length > 0) {
         const latitudes = decodedRoute.map((point: any) => point.latitude);

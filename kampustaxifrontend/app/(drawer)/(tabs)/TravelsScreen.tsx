@@ -22,6 +22,10 @@ import * as Clipboard from 'expo-clipboard';
 // Local imports
 import { BASE_URL } from '@/env';
 import { lightTheme, darkTheme, ThemeType } from '@/styles/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { RideHistoryItem } from '@/components';
+import { Header, Button } from '@/components/ui';
+import { useTranslation } from 'react-i18next';
 
 // Types
 interface UserProfile {
@@ -67,8 +71,8 @@ export default function TravelsScreen() {
 
 
   // Theme
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme, isDark } = useTheme();
+  const { t } = useTranslation();
 
   // Navigation
   const router = useRouter();
@@ -200,277 +204,97 @@ export default function TravelsScreen() {
 
 
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <View style={styles(theme).loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <View style={styles(theme).errorContainer}>
-        <MaterialIcons name="error-outline" size={64} color={theme.colors.error} />
-        <Text style={styles(theme).errorText}>{error}</Text>
-        <TouchableOpacity
-          style={styles(theme).retryButton}
-          onPress={fetchData}
-          activeOpacity={0.7}
-        >
-          <Text style={styles(theme).retryButtonText}>Try Again</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   return (
-    <ScrollView
-      style={styles(theme).container}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefreshing}
-          onRefresh={handleRefresh}
-          colors={[theme.colors.primary]}
-        />
-      }
-    >
-      <View style={styles(theme).header}>
-        <Text style={styles(theme).headerText}>Seyahatlarim</Text>
-      </View>
+    <View style={styles(theme).container}>
 
-      {myActivePosts.length === 0 && matchedPosts.length === 0 ? (
-        <View style={styles(theme).emptyContainer}>
-          <MaterialIcons name="directions-car" size={64} color={theme.colors.textLight} />
-          <Text style={styles(theme).emptyText}>
-            Henüz bir seyahatiniz yok.
-          </Text>
-        </View>
-      ) : (
-        <>
-          {myActivePosts.map((post) => {
-            const isDriver = profile && post.userId === profile.id;
-            const hasMatchedUser = !!post.matchedUser;
-            return (
-              <View key={post.id} style={styles(theme).postContainer}>
-                <TouchableOpacity
-                  style={styles(theme).postCard}
-                  onPress={() => isRideActive(post.datetimeStart, post.datetimeEnd) ? router.push({ pathname: '/(drawer)/LiveTrackingScreen', params: { post: JSON.stringify(post) } }) : navigateToPostDetail(post.id)}
-                  activeOpacity={0.7}
-                >
-                  {/* Trip details */}
-                  <View style={styles(theme).tripHeader}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      {isRideActive(post.datetimeStart, post.datetimeEnd) && (
-                        <View style={styles(theme).activeDotContainer}>
-                          <View style={styles(theme).activeDot} />
-                        </View>
-                      )}
-                      <View style={styles(theme).tripInfo}>
-                        <Text style={styles(theme).tripDate}>
-                          {formatDate(post.datetimeStart)}
-                        </Text>
-                        <Text style={styles(theme).tripTime}>
-                          {new Date(post.datetimeStart).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </Text>
-                      </View>
-                    </View>
-
-                  </View>
-
-                  {/* Route information */}
-                  <View style={styles(theme).routeContainer}>
-                    <View style={styles(theme).locationDots}>
-                      <View style={styles(theme).startDot} />
-                      <View style={styles(theme).routeLine} />
-                      <View style={styles(theme).endDot} />
-                    </View>
-                    <View style={styles(theme).locationInfo}>
-                      <Text style={styles(theme).locationText}>
-                        {extractDistrict(post.sourceAddress)}
-                      </Text>
-                      <Text style={styles(theme).locationText}>
-                        {post.destinationFaculty}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Travel companion info */}
-                  {post.matchedUser && (
-                    <View style={styles(theme).companionContainer}>
-                      <Text style={styles(theme).travelingWithLabel}>
-                        Seyahat arkadasiniz:
-                      </Text>
-                      <TouchableOpacity
-                        style={styles(theme).companionInfo}
-                        onPress={() => navigateToUserProfile(post.matchedUserId)}
-                        activeOpacity={0.6}
-                      >
-                        <View style={styles(theme).avatarContainer}>
-                          {post.matchedUser.id ? (
-                            <View style={styles(theme).avatarContainer}>
-                              <MaterialIcons name="person" size={24} color={'#ccc'} />
-                            </View>
-                          ) : (
-                            <View style={styles(theme).defaultAvatar}>
-                              <Text style={styles(theme).avatarText}>
-                                {post.matchedUser.name.charAt(0).toUpperCase()}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        <View style={styles(theme).companionDetails}>
-                          <Text style={styles(theme).companionName}>
-                            {post.matchedUser.name}
-                          </Text>
-                          <View style={styles(theme).starsContainer}>
-                            <FontAwesome name="star" size={12} color={theme.colors.warning} />
-                            <Text style={styles(theme).starsText}>
-                              {post.matchedUser.stars.toFixed(1)}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={styles(theme).viewProfileContainer}>
-                          <Text style={styles(theme).viewProfileText}>Profili Gör</Text>
-                          <MaterialIcons name="chevron-right" size={16} color={theme.colors.primary} />
-                        </View>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </TouchableOpacity>
-
-                {/* Chat button */}
-                <TouchableOpacity
-                  style={styles(theme).chatButton}
-                  onPress={() => navigateToChat(post.id, post.matchedUserId)}
-                  activeOpacity={0.7}
-                >
-                  <MaterialIcons name="chat" size={18} color={theme.colors.white} />
-                  <Text style={styles(theme).chatButtonText}>
-                    {(post.matchedUser && post.matchedUser.id != profile?.id) ? post.matchedUser.name : (post.matchedUser && post.matchedUser.id == profile?.id) ? post.user.name : 'Seyahat Arkadaşiniz'} ile sohbet et
-                  </Text>
-                </TouchableOpacity>
-
-
+      <ScrollView
+        style={styles(theme).content}
+        contentContainerStyle={styles(theme).scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
+        {myActivePosts.length === 0 && matchedPosts.length === 0 ? (
+          <View style={styles(theme).emptyContainer}>
+            <View style={styles(theme).emptyIconCircle}>
+              <MaterialIcons name="directions-car" size={48} color={theme.colors.primary} />
+            </View>
+            <Text style={styles(theme).emptyTitle}>{t('no_travels_yet')}</Text>
+            <Text style={styles(theme).emptySubtitle}>
+              {t('travels_placeholder')}
+            </Text>
+            <Button
+              title={t('find_ride')}
+              onPress={() => router.push('/(drawer)/(tabs)/PassengerScreen')}
+              variant="primary"
+              style={styles(theme).emptyButton}
+            />
+          </View>
+        ) : (
+          <View style={styles(theme).listContainer}>
+            {/* Active/My Posts Section */}
+            {myActivePosts.length > 0 && (
+              <View style={styles(theme).section}>
+                <Text style={styles(theme).sectionTitle}>{t('my_shared_rides')}</Text>
+                {myActivePosts.map((post) => (
+                  <RideHistoryItem
+                    key={post.id}
+                    id={post.id}
+                    date={new Date(post.datetimeStart)}
+                    from={extractDistrict(post.sourceAddress)}
+                    to={post.destinationFaculty}
+                    status={isRideActive(post.datetimeStart, post.datetimeEnd) ? 'ongoing' : 'upcoming'}
+                    driverName={profile?.name || t('you')}
+                    onPress={() => isRideActive(post.datetimeStart, post.datetimeEnd)
+                      ? router.push({ pathname: '/(drawer)/LiveTrackingScreen', params: { post: JSON.stringify(post) } })
+                      : navigateToPostDetail(post.id)
+                    }
+                  />
+                ))}
               </View>
-            );
-          })}
-          {matchedPosts.map((post) => {
-            const isPassenger = profile && post.matchedUserId === profile.id;
-            return (
-              <View key={post.id} style={styles(theme).postContainer}>
-                <TouchableOpacity
-                  style={styles(theme).postCard}
-                  onPress={() => navigateToPostDetail(post.id)}
-                  activeOpacity={0.7}
-                >
-                  {/* Trip details */}
-                  <View style={styles(theme).tripHeader}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      {isRideActive(post.datetimeStart, post.datetimeEnd) && (
-                        <View style={styles(theme).activeDotContainer}>
-                          <View style={styles(theme).activeDot} />
-                        </View>
-                      )}
-                      <View style={styles(theme).tripInfo}>
-                        <Text style={styles(theme).tripDate}>
-                          {formatDate(post.datetimeStart)}
-                        </Text>
-                        <Text style={styles(theme).tripTime}>
-                          {new Date(post.datetimeStart).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </Text>
-                      </View>
-                    </View>
+            )}
 
-                  </View>
-
-                  {/* Route information */}
-                  <View style={styles(theme).routeContainer}>
-                    <View style={styles(theme).locationDots}>
-                      <View style={styles(theme).startDot} />
-                      <View style={styles(theme).routeLine} />
-                      <View style={styles(theme).endDot} />
-                    </View>
-                    <View style={styles(theme).locationInfo}>
-                      <Text style={styles(theme).locationText}>
-                        {extractDistrict(post.sourceAddress)}
-                      </Text>
-                      <Text style={styles(theme).locationText}>
-                        {post.destinationFaculty}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Travel companion info */}
-                  {post.matchedUser && (
-                    <View style={styles(theme).companionContainer}>
-                      <Text style={styles(theme).travelingWithLabel}>
-                        Seyahat arkadasiniz:
-                      </Text>
-                      <TouchableOpacity
-                        style={styles(theme).companionInfo}
-                        onPress={() => navigateToUserProfile(post.matchedUserId)}
-                        activeOpacity={0.6}
-                      >
-                        <View style={styles(theme).avatarContainer}>
-                          {post.matchedUser.id ? (
-                            <View style={styles(theme).avatarContainer}>
-                              <MaterialIcons name="person" size={24} color={'#ccc'} />
-                            </View>
-                          ) : (
-                            <View style={styles(theme).defaultAvatar}>
-                              <Text style={styles(theme).avatarText}>
-                                {post.matchedUser.name.charAt(0).toUpperCase()}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        <View style={styles(theme).companionDetails}>
-                          <Text style={styles(theme).companionName}>
-                            {post.matchedUser.name}
-                          </Text>
-                          <View style={styles(theme).starsContainer}>
-                            <FontAwesome name="star" size={12} color={theme.colors.warning} />
-                            <Text style={styles(theme).starsText}>
-                              {post.matchedUser.stars.toFixed(1)}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={styles(theme).viewProfileContainer}>
-                          <Text style={styles(theme).viewProfileText}>Profili Gör</Text>
-                          <MaterialIcons name="chevron-right" size={16} color={theme.colors.primary} />
-                        </View>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </TouchableOpacity>
-
-
+            {/* Matched/Joined Travels Section */}
+            {matchedPosts.length > 0 && (
+              <View style={styles(theme).section}>
+                <Text style={styles(theme).sectionTitle}>{t('joined_rides')}</Text>
+                {matchedPosts.map((post) => (
+                  <RideHistoryItem
+                    key={post.id}
+                    id={post.id}
+                    date={new Date(post.datetimeStart)}
+                    from={extractDistrict(post.sourceAddress)}
+                    to={post.destinationFaculty}
+                    status={isRideActive(post.datetimeStart, post.datetimeEnd) ? 'ongoing' : 'upcoming'}
+                    driverName={post.user.name}
+                    onPress={() => navigateToPostDetail(post.id)}
+                  />
+                ))}
               </View>
-            );
-          })}
-        </>
-      )}
-
-    </ScrollView>
+            )}
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
-/**
- * Component styles using dynamic theme system
- */
 const styles = (theme: ThemeType) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  content: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: theme.spacing['4xl'],
   },
   loadingContainer: {
     flex: 1,
@@ -494,207 +318,57 @@ const styles = (theme: ThemeType) => StyleSheet.create({
   retryButton: {
     marginTop: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.xl,
     backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.full,
     ...theme.shadows.base,
   },
   retryButtonText: {
     ...theme.textStyles.button,
     color: theme.colors.white,
   },
-  header: {
-    paddingTop: theme.spacing['3xl'],
-    paddingBottom: theme.spacing.lg,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.white,
-    ...theme.shadows.sm,
+  listContainer: {
+    padding: theme.spacing.lg,
   },
-  headerText: {
-    ...theme.textStyles.header2,
+  section: {
+    marginBottom: theme.spacing.xl,
+  },
+  sectionTitle: {
+    ...theme.textStyles.header3,
     color: theme.colors.textDark,
+    marginBottom: theme.spacing.md,
+    marginLeft: theme.spacing.xs,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing.xl,
-    marginTop: theme.spacing.xl,
+    padding: theme.spacing['2xl'],
   },
-  emptyText: {
+  emptyIconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: (theme.colors as any).primaryTransparent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xl,
+  },
+  emptyTitle: {
+    ...theme.textStyles.header2,
+    color: theme.colors.textDark,
+    marginBottom: theme.spacing.sm,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
     ...theme.textStyles.body,
     color: theme.colors.textLight,
     textAlign: 'center',
-    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing['2xl'],
+    lineHeight: 22,
   },
-  postContainer: {
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.divider,
-  },
-  postCard: {
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.card,
-    borderRadius: theme.borderRadius.md,
-    ...theme.shadows.sm,
-  },
-  tripHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  tripInfo: {
-    flexDirection: 'column',
-  },
-  tripDate: {
-    ...theme.textStyles.header3,
-    color: theme.colors.primary,
-  },
-  tripTime: {
-    ...theme.textStyles.body,
-    color: theme.colors.textLight,
-  },
-  priceTag: {
-    backgroundColor: theme.colors.success + '20',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.lg,
-  },
-  priceText: {
-    ...theme.textStyles.header3,
-    color: theme.colors.success,
-  },
-  routeContainer: {
-    flexDirection: 'row',
-    marginBottom: theme.spacing.md,
-  },
-  locationDots: {
-    width: 20,
-    alignItems: 'center',
-    marginRight: theme.spacing.md,
-  },
-  startDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: theme.colors.primary,
-  },
-  routeLine: {
-    width: 2,
-    height: 30,
-    backgroundColor: theme.colors.divider,
-    marginVertical: 4,
-  },
-  endDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: theme.colors.secondary,
-  },
-  locationInfo: {
-    flex: 1,
-    justifyContent: 'space-between',
-    height: 60,
-  },
-  locationText: {
-    ...theme.textStyles.body,
-    color: theme.colors.textDark,
-  },
-  companionContainer: {
-    marginTop: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.divider,
-    paddingTop: theme.spacing.md,
-  },
-  travelingWithLabel: {
-    ...theme.textStyles.caption,
-    color: theme.colors.textLight,
-    marginBottom: theme.spacing.xs,
-  },
-  companionInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatarContainer: {
-    backgroundColor: '#f1f1f1',
-    borderRadius: 80,
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: theme.spacing.md,
-    padding: 10,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  defaultAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.primary + '50',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    ...theme.textStyles.header3,
-    color: theme.colors.primary,
-  },
-  companionDetails: {
-    flex: 1,
-  },
-  companionName: {
-    ...theme.textStyles.header3,
-    color: theme.colors.textDark,
-  },
-  starsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  starsText: {
-    ...theme.textStyles.caption,
-    color: theme.colors.textLight,
-    marginLeft: theme.spacing.xs,
-  },
-  chatButton: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.secondary,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    marginTop: theme.spacing.md,
-    ...theme.shadows.sm,
-  },
-  chatButtonText: {
-    ...theme.textStyles.button,
-    color: theme.colors.white,
-    marginLeft: theme.spacing.xs,
-  },
-  viewProfileContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 'auto',
-  },
-  viewProfileText: {
-    ...theme.textStyles.caption,
-    color: theme.colors.primary,
-    marginRight: theme.spacing.xs,
-  },
-  activeDotContainer: {
-    marginRight: 8,
-  },
-  activeDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: 'limegreen',
-    opacity: 0.7,
-    // Blinking animation will be added inline
+  emptyButton: {
+    width: '100%',
+    borderRadius: theme.borderRadius.full,
   },
 }); 
