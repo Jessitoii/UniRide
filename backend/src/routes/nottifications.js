@@ -12,7 +12,7 @@ router.get('/', auth, async (req, res) => {
   try {
     const notifications = await prisma.notification.findMany({
       where: {
-        userId: req.user.id
+        userId: req.user.userId
       },
       orderBy: {
         createdAt: 'desc'
@@ -28,25 +28,34 @@ router.get('/', auth, async (req, res) => {
 // Mark notification as read
 router.post('/:id/read', auth, async (req, res) => {
   try {
-        const notification = await prisma.notification.findUnique({
+    const { id } = req.params;
+
+    // Safety check for valid ObjectID length/format
+    if (!id || id === 'undefined' || id.length !== 24) {
+      return res.status(400).json({ msg: 'Invalid notification ID' });
+    }
+
+    const notification = await prisma.notification.findUnique({
       where: {
-        id: req.params.id
+        id: id
       }
     });
-    
+
     if (!notification) {
       return res.status(404).json({ msg: 'Notification not found' });
     }
-    
+
     // Check user owns the notification
-    if (notification.userId.toString() !== req.user.id) {
+    if (notification.userId !== req.user.userId) {
       return res.status(401).json({ msg: 'Not authorized' });
     }
-    
-    notification.isRead = true;
-    await notification.save();
-    
-    res.json(notification);
+
+    const updatedNotification = await prisma.notification.update({
+      where: { id },
+      data: { isRead: true }
+    });
+
+    res.json(updatedNotification);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
@@ -58,14 +67,14 @@ router.post('/read-all', auth, async (req, res) => {
   try {
     await prisma.notification.updateMany({
       where: {
-        userId: req.user.id,
+        userId: req.user.userId,
         isRead: false
       },
       data: {
         isRead: true
       }
     });
-    
+
     res.json({ msg: 'All notifications marked as read' });
   } catch (err) {
     console.error(err.message);

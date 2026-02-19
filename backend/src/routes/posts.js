@@ -3,6 +3,7 @@ const router = express.Router();
 const auth = require('../middleware/auth'); // Import the auth middleware
 const { PrismaClient } = require('@prisma/client');
 const { createNotification } = require('../services/notificationService');
+const { sendEmail } = require('../services/emailService');
 
 const prisma = new PrismaClient();
 
@@ -20,88 +21,159 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+// Helper for Robust Geometry Parsing
+function safeParseCoordinates(route) {
+  try {
+    if (!route) return [];
+    if (Array.isArray(route)) return route; // Already an array
+    if (typeof route === 'object') return route; // Object (unlikely for coordinates list but safe)
+
+    let parsed = JSON.parse(route);
+    // Handle double-stringified JSON
+    if (typeof parsed === 'string') {
+      parsed = JSON.parse(parsed);
+    }
+
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("Coordinate Parsing Error:", error.message);
+    return []; // Default empty array as requested
+  }
+}
+
+// Get ongoing/pending interests for the current user
+router.get('/my-interests', auth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const posts = await prisma.post.findMany({
+      where: {
+        interestedUsers: {
+          some: {
+            userId: userId
+          }
+        },
+        // matchedUserId: null, // Removed to show matched posts (Closed/Lost)
+        datetimeStart: {
+          gt: new Date() // Only future rides
+        }
+      },
+      include: {
+        user: true,
+        interestedUsers: {
+          where: {
+            userId: userId
+          }
+        }
+      },
+      orderBy: {
+        datetimeStart: 'asc'
+      }
+    });
+
+    res.json(posts);
+  } catch (error) {
+    console.error('Error fetching my interests:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Fetch posts near a location
 router.get('/nearby', async (req, res) => {
   try {
-    const { latitude, longitude, university, faculty } = req.query;
+    const { latitude, longitude, university, faculty, destinationUniversity, destinationFaculty } = req.query;
 
     if (!latitude || !longitude) {
       return res.status(400).json({ message: 'Latitude and longitude are required' });
     }
 
     const now = new Date();
+    // 1. Temporal Buffer: include rides that started within the last 30 minutes
+    const gracePeriod = new Date(now.getTime() - 30 * 60000);
 
-    let posts;
-    if (university && faculty) {
-      posts = await prisma.post.findMany({
-        where: {
-          destinationUniversity: university,
-          destinationFaculty: faculty,
-          OR: [
-            {
-              datetimeStart: {
-                gt: now,
-              },
-            },
-            {
-              datetimeEnd: {
-                gt: now,
-              },
-            },
-          ],
-        },
-        include: {
-          user: true,
-          interestedUsers: true,
-        },
-      });
-    } else {
-      posts = await prisma.post.findMany({
-        where: {
-          OR: [
-            {
-              datetimeStart: {
-                gt: now,
-              },
-            },
-            {
-              datetimeEnd: {
-                gt: now,
-              },
-            },
-          ],
-        },
-        include: {
-          user: true,
-          interestedUsers: true,
-        },
-      });
+    const searchUni = university || destinationUniversity;
+    const searchFac = faculty || destinationFaculty;
+
+    // 2. Predicate Loosening & Robust matchedUserId
+    const whereClause = {
+      OR: [
+        { matchedUserId: null },
+        { matchedUserId: { isSet: false } }
+      ],
+      datetimeStart: {
+        gt: gracePeriod,
+      },
+    };
+
+    // Implement Fuzzy/Insensitive Matching
+    if (searchUni) {
+      whereClause.destinationUniversity = {
+        contains: searchUni,
+        mode: 'insensitive'
+      };
     }
+    if (searchFac) {
+      whereClause.destinationFaculty = {
+        contains: searchFac,
+        mode: 'insensitive'
+      };
+    }
+
+    // Logging Expansion
+    console.log('[Nearby] Query whereClause:', JSON.stringify(whereClause, null, 2));
+
+    // 5. Prisma Include Optimization
+    const posts = await prisma.post.findMany({
+      where: whereClause,
+      include: {
+        user: true,
+        interestedUsers: {
+          include: {
+            user: true, // Avoid N+1 by including user details
+          }
+        },
+      },
+    });
 
     const userLatitude = parseFloat(latitude);
     const userLongitude = parseFloat(longitude);
 
-    console.log("Posts:", posts.length);
-
+    console.log(`[Nearby] Found ${posts.length} candidate posts before geo-filtering.`);
 
     const nearbyPosts = posts
       .map((post) => {
-        const routeCoordinates = JSON.parse(JSON.parse(post.route));
+        // 3. Robust Geometry Parsing
+        const routeCoordinates = safeParseCoordinates(post.route);
+
+        // Technical Constraint: Do not return null. Handle empty coords gracefully.
+        if (routeCoordinates.length === 0) {
+          return { ...post, minDistance: Infinity };
+        }
+
         const distances = routeCoordinates.map((coord) => {
           return haversineDistance(
             userLatitude,
             userLongitude,
-            coord.latitude,
-            coord.longitude
+            coord.latitude || coord.lat,
+            coord.longitude || coord.lng || coord.long
           );
         });
-        const minDistance = Math.min(...distances);
-        return { ...post, minDistance };
-      })
-      .filter((post) => post.minDistance <= 5) // Exclude posts with min distance > 5 km
-      .sort((a, b) => a.minDistance - b.minDistance); // Sort by min distance
 
-    res.json(nearbyPosts);
+        const minDistance = distances.length > 0 ? Math.min(...distances) : Infinity;
+        return { ...post, minDistance };
+      });
+
+    // 4. Distance Logic Audit
+    const logPreview = nearbyPosts.slice(0, 5).map(p => ({ id: p.id, dist: p.minDistance, routeLen: safeParseCoordinates(p.route).length }));
+    console.log("[Nearby] Distance Audit (First 5):", JSON.stringify(logPreview, null, 2));
+
+    const finalPosts = nearbyPosts
+      .filter((post) => post.minDistance <= 10) // Limit to 10km radius
+      .sort((a, b) => a.minDistance - b.minDistance);
+
+    console.log(`[Nearby] Returning ${finalPosts.length} posts after distance filter.`);
+
+    res.json(finalPosts);
   } catch (error) {
     console.error('Error fetching nearby posts:', error);
     res.status(500).json({ message: 'Server error' });
@@ -153,10 +225,10 @@ router.post('/', auth, async (req, res) => {
       data: {
         userId,
         sourceAddress,
-        sourceCoordinates: JSON.stringify(sourceCoordinates),
+        sourceCoordinates: typeof sourceCoordinates === 'string' ? sourceCoordinates : JSON.stringify(sourceCoordinates),
         destinationUniversity,
         destinationFaculty,
-        route: JSON.stringify(route),
+        route: typeof route === 'string' ? route : JSON.stringify(route),
         datetimeStart: new Date(datetimeStart),
         datetimeEnd: new Date(datetimeEnd),
       },
@@ -178,15 +250,48 @@ router.post('/', auth, async (req, res) => {
 // Get all posts
 router.get('/', async (req, res) => {
   try {
+    const { university, faculty, destinationUniversity, destinationFaculty } = req.query;
+
+    const now = new Date();
+    const gracePeriod = new Date(now.getTime() - 30 * 60000);
+
+    const searchUni = university || destinationUniversity;
+    const searchFac = faculty || destinationFaculty;
+
+    // Construct robust whereClause
+    const whereClause = {
+      OR: [
+        { matchedUserId: null },
+        { matchedUserId: { isSet: false } }
+      ],
+      datetimeStart: {
+        gt: gracePeriod,
+      },
+    };
+
+    if (searchUni) {
+      whereClause.destinationUniversity = {
+        contains: searchUni,
+        mode: 'insensitive'
+      };
+    }
+    if (searchFac) {
+      whereClause.destinationFaculty = {
+        contains: searchFac,
+        mode: 'insensitive'
+      };
+    }
+
+    console.log('[GET /] Query whereClause:', JSON.stringify(whereClause, null, 2));
+
     const posts = await prisma.post.findMany({
+      where: whereClause,
       include: {
         user: true,
         interestedUsers: {
-          select: {
-            user: true,
-            post: true,
-            locationCoordinates: true,
-          },
+          include: {
+            user: true
+          }
         },
       },
     });
@@ -226,10 +331,61 @@ router.put('/:postId', auth, async (req, res) => {
 // Delete a post
 router.delete('/:id', auth, async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id: postId } = req.params;
+    const userId = req.user.userId;
+
+    // Get post details before deletion to notify users
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      include: {
+        interestedUsers: true,
+        matchedUser: true
+      }
+    });
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (post.userId !== userId) {
+      return res.status(403).json({ message: 'Not authorized to delete this post' });
+    }
+
+    // Notify matched user
+    if (post.matchedUserId) {
+      await createNotification(
+        post.matchedUserId,
+        'ride',
+        'Yolculuk Silindi',
+        `Sürücü ${post.sourceAddress} - ${post.destinationUniversity} yolculuğunu sildi.`,
+        postId,
+        'Post'
+      );
+    }
+
+    // Notify interested users
+    for (const entry of post.interestedUsers) {
+      if (entry.userId !== post.matchedUserId) {
+        await createNotification(
+          entry.userId,
+          'ride',
+          'Yolculuk Yayından Kaldırıldı',
+          `İlgilendiğiniz ${post.sourceAddress} - ${post.destinationUniversity} yolculuğu sürücü tarafından silindi.`,
+          postId,
+          'Post'
+        );
+      }
+    }
+
+    // First delete relations if using MongoDB (sometimes Prisma needs manual cleanup for many-to-many or some relations)
+    // Actually Prisma with MongoDB handles some but let's be safe if there are issues.
+    // InterestedUser should be deleted by cascade or manually.
+    await prisma.interestedUser.deleteMany({
+      where: { postId: postId }
+    });
 
     await prisma.post.delete({
-      where: { id },
+      where: { id: postId },
     });
 
     res.status(204).send();
@@ -271,6 +427,7 @@ router.post('/:id/interested', auth, async (req, res) => {
         userId,
         postId,
         locationCoordinates: JSON.stringify(locationCoordinates),
+        createdAt: new Date()
       },
     });
 
@@ -311,8 +468,22 @@ router.post('/:postId/match', auth, async (req, res) => {
   try {
     const postCheck = await prisma.post.findUnique({ where: { id: postId } });
     if (!postCheck) return res.status(404).json({ message: 'Post not found' });
+
+    // Authorization check
+    if (postCheck.userId !== driverId) return res.status(403).json({ message: 'Only the driver can execute this action' });
+
     if (postCheck.matchedUserId) {
       return res.status(400).json({ message: 'Ride is full (Seats not available)' });
+    }
+
+    // Temporal check: prevent matching past rides
+    if (new Date(postCheck.datetimeStart) < new Date()) {
+      return res.status(400).json({ message: 'Cannot match past rides' });
+    }
+
+    // Status check
+    if (postCheck.status === 'COMPLETED') {
+      return res.status(400).json({ message: 'Ride is no longer active' });
     }
 
     const post = await prisma.post.update({
@@ -345,6 +516,30 @@ router.post('/:postId/match', auth, async (req, res) => {
       postId,
       'Post'
     );
+
+    // Send email to passenger
+    try {
+      if (matchedUserId) {
+        // We only fetched user in include on update. Let's make sure matchedUser has email.
+        const passenger = await prisma.user.findUnique({ where: { id: matchedUserId } });
+        if (passenger && passenger.email) {
+          const emailHtml = `
+               <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                 <h2 style="color: #FF007A;">Tebrikler!</h2>
+                 <p><strong>${post.user.name}</strong> ile eşleştiniz.</p>
+                 <p>Yolculuk detaylarını uygulamanızdan görüntüleyebilirsiniz.</p>
+                 <div style="margin-top: 20px; text-align: center;">
+                   <a href="#" style="background-color: #FF007A; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Yolculuğu Görüntüle</a>
+                 </div>
+               </div>
+             `;
+          await sendEmail(passenger.email, 'KampüsRoute: Yolculuk Eşleşmesi Onaylandı!', emailHtml);
+        }
+      }
+    } catch (emailError) {
+      console.error('Failed to send match email:', emailError);
+      // Do not fail the request, just log
+    }
 
     res.json({ post, matchedUser });
   } catch (error) {
@@ -430,40 +625,32 @@ router.post('/:postId/cancel-match', auth, async (req, res) => {
   }
 });
 
-router.get('/profile', auth, async (req, res) => {
-  try {
-    const userId = req.user.userId; // Get userId from the decoded token
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        posts: {
-          include: {
-            interestedUsers: true,
-          },
-        }, // Include posts relation
-        car: true,   // Include car relation
-        wallet: true, // Include wallet relation
-        interestedIn: {
-          include: {
-            post: true,
-            user: true,
-          },
-        }, // Include interestedIn relation
-        matchedPosts: true, // Include matchedPosts relation
-        reviewMade: true, // Include reviewMade relation
-        reviewReceived: true, // Include reviewReceived relation
-        messagesSent: true, // Include messagesSent relation
-        messagesReceived: true, // Include messagesReceived relation
-      },
-    });
 
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+
+// Complete a ride
+router.post('/:id/complete', auth, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.userId;
+
+  try {
+    const post = await prisma.post.findUnique({ where: { id } });
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
     }
 
-    res.json(user);
+    if (post.userId !== userId) {
+      return res.status(403).json({ message: 'Only the driver can complete the ride' });
+    }
+
+    const updatedPost = await prisma.post.update({
+      where: { id },
+      data: { status: 'COMPLETED' },
+    });
+
+    res.json(updatedPost);
   } catch (error) {
-    console.error('Profile error:', error);
+    console.error('Error completing ride:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

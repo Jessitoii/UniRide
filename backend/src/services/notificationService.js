@@ -16,7 +16,7 @@ const createNotification = async (userId, type, title, message, relatedId = null
         refModel
       }
     });
-    
+
     return notification;
   } catch (err) {
     console.error('Error creating notification:', err);
@@ -34,10 +34,7 @@ const createMatchNotification = async (userId, title, message, matchedUserId) =>
   return createNotification(userId, 'match', title, message, matchedUserId, 'User');
 };
 
-// For payment-related notifications
-const createPaymentNotification = async (userId, title, message, paymentId) => {
-  return createNotification(userId, 'payment', title, message, paymentId, 'Payment');
-};
+
 
 // For system notifications
 const createSystemNotification = async (userId, title, message) => {
@@ -47,7 +44,6 @@ const createSystemNotification = async (userId, title, message) => {
 module.exports = {
   createRideNotification,
   createMatchNotification,
-  createPaymentNotification,
   createSystemNotification,
   createNotification
 };

@@ -6,8 +6,8 @@ description: Enforces a high-fidelity Lyft-inspired design system across all Rea
 # Goal
 Transform the "KampüsRoute" frontend into a professional-grade application that mimics the UX/UI standards of top-tier ride-sharing platforms like Lyft. Eliminate hardcoded styles in favor of a centralized, scalable design system.
 
-# Design Resources
-- **Reference Material**: Reference screenshots of the Lyft UI are located in `.agent/skills/designer/resources/`. 
+# Design examples
+- **Reference Material**: Reference screenshots of the Lyft UI are located in `.agent/skills/designer/examples/`. 
 - **Agent Protocol**: Before modifying any `.tsx` file in the `app/` or `components/` directory, analyze these screenshots to understand spacing, typography hierarchy, and color contrast.
 
 # Technical Specifications (The Lyft Standard)

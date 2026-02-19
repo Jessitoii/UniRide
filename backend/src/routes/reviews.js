@@ -10,15 +10,30 @@ const prisma = new PrismaClient();
 // Create a new review
 router.post('/', auth, async (req, res) => {
   try {
-    const { reviewedUserId, star, comment } = req.body;
+    const { reviewedUserId, star, comment, postId } = req.body;
     const userId = req.user.userId;
+
+    // Check if review already exists
+    const existingReview = await prisma.review.findFirst({
+      where: {
+        userId,
+        reviewedUserId,
+        postId // Ensure this is unique per ride
+      }
+    });
+
+    if (existingReview) {
+      return res.status(400).json({ message: 'You have already reviewed this ride.' });
+    }
 
     const review = await prisma.review.create({
       data: {
         userId,
         reviewedUserId,
         star,
+        star,
         comment,
+        postId
       },
       include: {
         user: true,
@@ -62,7 +77,7 @@ router.get('/:userId', async (req, res) => {
           select: {
             name: true,
             surname: true,
-          }, 
+          },
         },
       },
     });

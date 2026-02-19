@@ -26,11 +26,38 @@ model User {
   reviewReceived Review[] @relation("CommentedUser") // Comments received by the user
   messagesSent   Message[] @relation("MessageSender") // Messages sent by the user
   messagesReceived Message[] @relation("MessageReceiver") // Messages received by the user
+  blockedUsers   BlockList[] @relation("Blocker")
+  blockedBy      BlockList[] @relation("Blocked")
   carId          String?  @map("car_id")
   car            Car?     @relation("CarUser")
+  
+  emailNotifications Boolean @default(false)
+  pushNotifications  Boolean @default(false)
+  notificationsEnabled Boolean @default(true)
+  appAlerts          Boolean @default(false)
+  locationFeatures   Boolean @default(false)
+  locationAccess     Boolean @default(false)
+  hasCustomPhoto     Boolean @default(false)
 
+  lastSeen           DateTime? @default(now())
   createdAt      DateTime @default(now())
+  shortcuts      Shortcut[]
+
   @@map("users")
+}
+
+model Shortcut {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  label     String
+  address   String
+  latitude  Float
+  longitude Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("shortcuts")
 }
 
 model ValidationCode {
@@ -56,6 +83,8 @@ model Post {
   interestedUsers         InterestedUser[] // Relation to UserPost join model
   matchedUserId           String?   @map("matched_user_id") // Foreign key to User, optional
   matchedUser             User?     @relation("MatchedUser", fields: [matchedUserId], references: [id]) // Relation to User
+  reviews                 Review[] // Reviews related to this post
+  status                  String    @default("PENDING") // PENDING, MATCHED, COMPLETED, CANCELLED, EXPIRED
   createdAt               DateTime  @default(now())
 }
 
@@ -66,6 +95,7 @@ model InterestedUser {
   locationCoordinates String
   user      User   @relation(fields: [userId], references: [id])
   post      Post?   @relation(fields: [postId], references: [id])
+  createdAt DateTime? @default(now())
   @@map("user_posts")
 }
 
@@ -73,25 +103,36 @@ model Review {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
   userId         String   @map("user_id") // Foreign key to User who made the comment
   reviewedUserId String  @map("commented_user_id") // Foreign key to User who received the comment
+  postId         String?  @map("post_id") @db.ObjectId // Optional relation to the ride
   star           Int      @default(0) @db.Int // Star rating (0-5)
-  comment        String   // Comment text
+  comment        String?
   createdAt      DateTime @default(now())
   
   user           User     @relation("Commenter", fields: [userId], references: [id]) // Relation to User who made the comment
   reviewedUser  User     @relation("CommentedUser", fields: [reviewedUserId], references: [id]) // Relation to User who received the comment
+  post           Post?    @relation(fields: [postId], references: [id])
+
+  @@map("reviews")
 }
 
 model Message {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  roomId    String
+  rideId    String   @map("ride_id") // Changed from roomId to rideId based on requirements, but often rideId == roomId
   sender    User     @relation("MessageSender", fields: [senderId], references: [id])
-  senderId  String  @map("sender_id")
+  senderId  String   @map("sender_id")
   receiver  User     @relation("MessageReceiver", fields: [receiverId], references: [id])
   receiverId String  @map("receiver_id")
   text      String
   timestamp DateTime @default(now())
+  status    MessageStatus @default(SENT)
 
-  @@index([roomId])
+  @@index([rideId])
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
 }
 
 model Car {
@@ -111,7 +152,6 @@ model Car {
 enum NotificationType {
   ride
   match
-  payment
   system
 }
 
@@ -119,7 +159,7 @@ enum NotificationType {
 enum ReferenceModel {
   Post
   User
-
+  Review
 }
 
 // Notification model
@@ -146,4 +186,17 @@ model Notification {
   @@index([userId])
   @@index([relatedId])
   @@map("notifications")
+}
+
+model BlockList {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  blockerId String   @map("blocker_id")
+  blockedId String   @map("blocked_id")
+  timestamp DateTime @default(now())
+
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id])
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id])
+
+  @@unique([blockerId, blockedId])
+  @@map("block_list")
 }

@@ -7,10 +7,16 @@ const path = require('path');
 
 const prisma = new PrismaClient();
 
+const fs = require('fs');
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/cars');
+    const uploadPath = path.join(__dirname, '../../uploads/cars');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
     const carId = req.params.id;
@@ -53,7 +59,19 @@ router.post('/:id/photo', auth, upload.single('photo'), async (req, res) => {
   try {
     const carId = req.params.id;
 
-    res.json({ message: 'Photo uploaded successfully' });
+    if (!req.file) {
+      return res.status(400).json({ message: 'No photo uploaded' });
+    }
+
+    const filename = req.file.filename;
+
+    // Update car with photo path
+    const updatedCar = await prisma.car.update({
+      where: { id: carId },
+      data: { photoPath: filename },
+    });
+
+    res.json({ message: 'Photo uploaded successfully', car: updatedCar });
   } catch (error) {
     console.error('Error uploading car photo:', error);
     res.status(500).json({ message: 'Server error' });
