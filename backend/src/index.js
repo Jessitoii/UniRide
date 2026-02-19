@@ -19,7 +19,9 @@ const io = new Server(server, {
 const prisma = new PrismaClient();
 
 const path = require('path');
-
+app.get('/ping', (req, res) => {
+  res.status(200).send('Handshake acknowledged.');
+});
 // Middleware
 app.use(cors({
   origin: '*', // Be more restrictive in production
