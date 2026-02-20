@@ -76,7 +76,7 @@ export default function SearchLocation() {
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1&countrycodes=tr`,
         {
           headers: {
-            'User-Agent': 'KampusRoute-App-v1',
+            'User-Agent': 'UniRide-App-v1',
             'Accept-Language': 'tr-TR,tr;q=0.9'
           }
         }

@@ -114,7 +114,7 @@ export default function LoginScreen() {
             <View style={styles(theme).logoWrapper}>
               <MaterialIcons name="local-taxi" size={48} color={theme.colors.white} />
             </View>
-            <Text style={styles(theme).appName}>KampüsRoute</Text>
+            <Text style={styles(theme).appName}>UniRide</Text>
             <Text style={styles(theme).tagline}>Geleceğin kampüs ulaşımı</Text>
           </View>
 

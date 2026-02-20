@@ -125,8 +125,8 @@ export default function ProfileScreen() {
   const handleShareProfile = () => {
     if (!profile) return;
     Share.share({
-      title: 'KampüsRoute Profili',
-      message: `${profile.name} ${profile.surname} ile KampüsRoute'ta yolculuk yap!`,
+      title: 'UniRide Profili',
+      message: `${profile.name} ${profile.surname} ile UniRide'ta yolculuk yap!`,
       url: `${BASE_URL}/profile/${profile.id}` // Hypothetical deep link
     });
   };
@@ -285,7 +285,7 @@ export default function ProfileScreen() {
           <Text style={styles(theme).logoutText}>{t('logout')}</Text>
         </TouchableOpacity>
 
-        <Text style={styles(theme).versionText}>{t('version')} 1.0.0 • KampüsRoute</Text>
+        <Text style={styles(theme).versionText}>{t('version')} 1.0.0 • UniRide</Text>
       </ScrollView>
     </View>
   );

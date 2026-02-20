@@ -1,11 +1,19 @@
 const nodemailer = require('nodemailer');
 
 // Configure nodemailer
+// Locate your transport initialization
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false, // Mandatory for STARTTLS on Port 587
     auth: {
         user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD
+        pass: process.env.EMAIL_PASSWORD, // Must be the 16-character Google App Password
+    },
+    tls: {
+        // Hardens the connection against certain cloud network instabilities
+        rejectUnauthorized: false,
+        ciphers: 'SSLv3'
     }
 });
 

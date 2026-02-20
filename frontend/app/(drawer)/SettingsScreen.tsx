@@ -331,7 +331,7 @@ export default function SettingsScreen() {
         if (status !== 'granted') {
           Alert.alert(
             'Location Access Required',
-            'KampüsRoute needs location access to show nearby rides and provide navigation. Please enable it in system settings.',
+            'UniRide needs location access to show nearby rides and provide navigation. Please enable it in system settings.',
             [
               { text: t('cancel'), style: 'cancel' },
               { text: t('settings'), onPress: () => Linking.openSettings() }

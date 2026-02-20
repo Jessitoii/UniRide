@@ -88,22 +88,22 @@ router.post('/signup', async (req, res) => {
 
     // Define high-level mail options
     const mailOptions = {
-      from: `"KampüsRoute Destek" <${process.env.EMAIL_USER}>`,
+      from: `"UniRide Destek" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: 'KampüsRoute: E-posta Doğrulama Kodu',
+      subject: 'UniRide: E-posta Doğrulama Kodu',
       html: `
         <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border: 1px solid #f0f0f0;">
           <div style="background-color: #FF007A; padding: 20px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: bold;">KampüsRoute</h1>
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: bold;">UniRide</h1>
           </div>
           <div style="padding: 30px;">
             <p style="color: #333333; font-size: 16px; line-height: 1.5;">Merhaba <strong>${name}</strong>,</p>
-            <p style="color: #555555; font-size: 16px; line-height: 1.5;">KampüsRoute topluluğuna katılmanız için son bir adım kaldı. Güvenliğiniz için aşağıdaki doğrulama kodunu kullanın:</p>
+            <p style="color: #555555; font-size: 16px; line-height: 1.5;">UniRide topluluğuna katılmanız için son bir adım kaldı. Güvenliğiniz için aşağıdaki doğrulama kodunu kullanın:</p>
             <div style="background-color: #f8f9fa; border-radius: 6px; padding: 15px; margin: 25px 0; text-align: center;">
               <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #2d3436;">${validationCode}</span>
             </div>
             <p style="color: #888888; font-size: 14px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">Bu kod 30 dakika süreyle geçerlidir. Eğer bu işlemi siz yapmadıysanız, lütfen bu e-postayı görmezden gelin.</p>
-            <p style="color: #aaaaaa; font-size: 12px; text-align: center; margin-top: 20px;">© 2026 KampüsRoute. Tüm hakları saklıdır.</p>
+            <p style="color: #aaaaaa; font-size: 12px; text-align: center; margin-top: 20px;">© 2026 UniRide. Tüm hakları saklıdır.</p>
           </div>
         </div>
       `
@@ -111,7 +111,7 @@ router.post('/signup', async (req, res) => {
 
     // Execute asynchronous transport
     try {
-      await sendEmail(email, 'KampüsRoute: E-posta Doğrulama Kodu', mailOptions.html);
+      await sendEmail(email, 'UniRide: E-posta Doğrulama Kodu', mailOptions.html);
       console.log(`[AuthService] Validation code sent to: ${email}`);
       res.json({ message: 'Validation code sent to email' });
     } catch (mailError) {

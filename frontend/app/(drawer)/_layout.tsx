@@ -141,7 +141,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
 
             <View style={s.footer}>
                 <Text style={s.footerText}>
-                    KampüsRoute v1.0.0
+                    UniRide v1.0.0
                 </Text>
                 <Text style={[s.footerText, { fontSize: 10, marginTop: 4 }]}>
                     {t('student_network_slogan')}

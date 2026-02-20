@@ -14,7 +14,7 @@ type ThemeContextType = {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const THEME_PREFERENCE_KEY = '@kampustaxi_theme_preference';
+const THEME_PREFERENCE_KEY = '@uniride_theme_preference';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const systemColorScheme = useColorScheme();

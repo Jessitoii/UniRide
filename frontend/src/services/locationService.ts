@@ -21,7 +21,7 @@ export const searchAddress = async (query: string): Promise<LocationResult[]> =>
             )}&format=json&addressdetails=1&limit=5`,
             {
                 headers: {
-                    'User-Agent': 'KampusRoute/1.0',
+                    'User-Agent': 'UniRide/1.0',
                 },
             }
         );
@@ -39,7 +39,7 @@ export const getAddressFromCoords = async (latitude: number, longitude: number):
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
             {
                 headers: {
-                    'User-Agent': 'KampusRoute/1.0',
+                    'User-Agent': 'UniRide/1.0',
                 },
             }
         );
