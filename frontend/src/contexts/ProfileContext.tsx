@@ -21,6 +21,15 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    const deleteProfile = async () => {
+        try {
+            await AsyncStorage.removeItem('token');
+            setProfile(null);
+        } catch (error) {
+            console.error('Failed to delete profile:', error);
+        }
+    };
+
     const refreshProfile = async () => {
         try {
             const token = await AsyncStorage.getItem('token');

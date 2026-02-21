@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delete Your Account | UniRide</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-pink: #FF007A;
+            --deep-purple: #2D0B5A;
+            --bg-dark: #0F0115;
+            --text-white: #FFFFFF;
+            --text-gray: #BBBBBB;
+            --card-bg: rgba(255, 255, 255, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            background-image: linear-gradient(135deg, #0F0115 0%, #2D0B5A 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-white);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 450px;
+            width: 100%;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 30px;
+            background: linear-gradient(to right, #FF007A, #FF4D97);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        p {
+            color: var(--text-gray);
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+
+        .input-group {
+            text-align: left;
+            margin-bottom: 24px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: var(--text-gray);
+            margin-left: 4px;
+        }
+
+        input[type="email"] {
+            width: 100%;
+            padding: 14px 18px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        input[type="email"]:focus {
+            outline: none;
+            border-color: var(--primary-pink);
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 0 0 4px rgba(255, 0, 122, 0.1);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background: var(--primary-pink);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 15px -3px rgba(255, 0, 122, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(255, 0, 122, 0.4);
+            filter: brightness(1.1);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-message {
+            margin-top: 20px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status-success {
+            color: #4ade80;
+        }
+
+        .status-error {
+            color: #f87171;
+        }
+
+        .footer {
+            margin-top: 32px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="logo">UniRide</div>
+        <h1>Account Deletion</h1>
+        <p>We're sorry to see you go. Enter your email address below to request permanent deletion of your account and
+            all associated data.</p>
+
+        <form id="deletionForm">
+            <div class="input-group">
+                <label for="email">Account Email</label>
+                <input type="email" id="email" placeholder="name@university.edu" required>
+            </div>
+            <button type="submit" class="btn" id="submitBtn">Request Data Deletion</button>
+        </form>
+
+        <div id="statusMessage" class="status-message"></div>
+
+        <div class="footer">
+            &copy; 2026 UniRide. Data deletion requests are processed within 30 days.
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('deletionForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const statusMsg = document.getElementById('statusMessage');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Processing...';
+            statusMsg.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/auth/request-data-deletion', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email }),
+                });
+
+                const data = await response.json();
+
+                statusMsg.style.display = 'block';
+                if (response.ok) {
+                    statusMsg.className = 'status-message status-success';
+                    statusMsg.innerText = 'Success! A confirmation email has been sent to ' + email + '. Please follow the instructions in the email to complete the process.';
+                    form.reset();
+                } else {
+                    statusMsg.className = 'status-message status-error';
+                    statusMsg.innerText = data.message || 'An error occurred. Please try again later.';
+                }
+            } catch (err) {
+                statusMsg.style.display = 'block';
+                statusMsg.className = 'status-message status-error';
+                statusMsg.innerText = 'Network error. Please check your connection.';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Request Data Deletion';
+            }
+        });
+    </script>
+</body>
+
+</html>

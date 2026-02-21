@@ -38,6 +38,7 @@ model User {
   locationFeatures   Boolean @default(false)
   locationAccess     Boolean @default(false)
   hasCustomPhoto     Boolean @default(false)
+  status             String  @default("ACTIVE")
 
   lastSeen           DateTime? @default(now())
   createdAt      DateTime @default(now())

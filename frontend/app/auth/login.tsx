@@ -9,7 +9,8 @@ import {
   Platform,
   StatusBar,
   useColorScheme,
-  Dimensions
+  Dimensions,
+  Linking
 } from 'react-native';
 import { TextInput, Button, Text } from 'react-native-paper';
 import { useRouter } from 'expo-router';
@@ -18,6 +19,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { lightTheme, darkTheme, ThemeType } from '../../src/styles/theme';
 import api from '../../config/api';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -89,8 +91,12 @@ export default function LoginScreen() {
     }
   };
 
+  const handleOpenPrivacyPolicy = () => {
+    Linking.openURL('https://jessitoii.github.io/UniRide-User-Terms-and-Conditions/');
+  };
+
   return (
-    <View style={styles(theme).mainContainer}>
+    <SafeAreaView style={styles(theme).mainContainer}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       {/* Background Gradient */}
@@ -112,15 +118,18 @@ export default function LoginScreen() {
         >
           <View style={styles(theme).headerSection}>
             <View style={styles(theme).logoWrapper}>
-              <MaterialIcons name="local-taxi" size={48} color={theme.colors.white} />
+              <Image
+                source={require('../../src/assets/images/logo.png')}
+                style={styles(theme).logoImage}
+                resizeMode="contain"
+              />
             </View>
-            <Text style={styles(theme).appName}>UniRide</Text>
-            <Text style={styles(theme).tagline}>Geleceğin kampüs ulaşımı</Text>
+            <Text style={styles(theme).tagline}>{"Geleceğin kampüs ulaşımı"}</Text>
           </View>
 
-          <View style={styles(theme).card}>
-            <Text style={styles(theme).title}>Hoş Geldiniz</Text>
-            <Text style={styles(theme).subtitle}>Hesabınıza giriş yapın</Text>
+          <View style={[styles(theme).card, { backgroundColor: colorScheme === 'dark' ? 'rgba(30, 30, 30, 1)' : 'rgba(255, 255, 255, 0.95)' }]}>
+            <Text style={styles(theme).title}>{"Hoş Geldiniz"}</Text>
+            <Text style={styles(theme).subtitle}>{"Hesabınıza giriş yapın"}</Text>
 
             <View style={styles(theme).form}>
               <TextInput
@@ -133,8 +142,9 @@ export default function LoginScreen() {
                 style={styles(theme).input}
                 activeUnderlineColor={theme.colors.primary}
                 underlineColor="transparent"
-                textColor={theme.colors.textDark}
+                textColor="#FFFFFF"
                 placeholder="örnek@ogr.uü.edu.tr"
+                placeholderTextColor="rgba(255,255,255,0.6)"
                 left={<TextInput.Icon icon="email" color={theme.colors.primary} />}
               />
 
@@ -147,13 +157,14 @@ export default function LoginScreen() {
                 style={styles(theme).input}
                 activeUnderlineColor={theme.colors.primary}
                 underlineColor="transparent"
-                textColor={theme.colors.textDark}
+                textColor="#FFFFFF"
+                placeholderTextColor="rgba(255,255,255,0.6)"
                 left={<TextInput.Icon icon="lock" color={theme.colors.primary} />}
                 right={
                   <TextInput.Icon
                     icon={passwordVisible ? "eye-off" : "eye"}
                     onPress={() => setPasswordVisible(!passwordVisible)}
-                    color={theme.colors.textLight}
+                    color={theme.colors.primary}
                   />
                 }
               />
@@ -174,7 +185,7 @@ export default function LoginScreen() {
                 contentStyle={styles(theme).loginButtonContent}
                 buttonColor={theme.colors.primary}
               >
-                Giriş Yap
+                {"Giriş Yap"}
               </Button>
 
               <TouchableOpacity
@@ -182,7 +193,8 @@ export default function LoginScreen() {
                 style={styles(theme).signupLink}
               >
                 <Text style={styles(theme).signupText}>
-                  Henüz hesabınız yok mu? <Text style={styles(theme).signupTextBold}>Üye Olun</Text>
+                  {"Henüz hesabınız yok mu? "}
+                  <Text style={styles(theme).signupTextBold}>{"Üye Olun"}</Text>
                 </Text>
               </TouchableOpacity>
             </View>
@@ -190,12 +202,16 @@ export default function LoginScreen() {
 
           <View style={styles(theme).footer}>
             <Text style={styles(theme).footerText}>
-              By continuing, you agree to our Terms and Conditions
+              {"Devam ederek "}
+              <Text style={styles(theme).footerTextBold} onPress={handleOpenPrivacyPolicy}>
+                {"Kullanım Koşullarını"}
+              </Text>
+              {" kabul etmiş olursunuz."}
             </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -224,13 +240,16 @@ const styles = (theme: ThemeType) => StyleSheet.create({
     marginBottom: theme.spacing['2xl'],
   },
   logoWrapper: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 150,
+    height: 150,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    marginBottom: 20,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    tintColor: '#FFFFFF',
   },
   appName: {
     ...theme.textStyles.header1,
@@ -247,7 +266,11 @@ const styles = (theme: ThemeType) => StyleSheet.create({
     backgroundColor: theme.colors.card,
     borderRadius: 32,
     padding: theme.spacing.xl,
-    ...theme.shadows.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
     marginTop: theme.spacing.md,
   },
   title: {
@@ -266,7 +289,7 @@ const styles = (theme: ThemeType) => StyleSheet.create({
     gap: theme.spacing.md,
   },
   input: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     borderBottomLeftRadius: 12,
@@ -309,7 +332,7 @@ const styles = (theme: ThemeType) => StyleSheet.create({
   },
   footer: {
     marginTop: 'auto',
-    paddingTop: theme.spacing.xl,
+    paddingTop: theme.spacing.xs,
     alignItems: 'center',
   },
   footerText: {
@@ -317,5 +340,9 @@ const styles = (theme: ThemeType) => StyleSheet.create({
     color: theme.colors.textLight,
     textAlign: 'center',
     opacity: 0.7,
+  },
+  footerTextBold: {
+    color: theme.colors.primary,
+    fontWeight: '700',
   },
 }); 

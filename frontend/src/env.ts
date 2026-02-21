@@ -2,11 +2,11 @@ import Constants from 'expo-constants';
 
 const getBaseUrl = () => {
     // 1. Identify the environment
-    const isProduction = true;
+    const isProduction = __DEV__;
 
     // 2. Production URL (Render)
     if (isProduction) {
-        return 'https://kampustaxi.onrender.com';
+        return 'https://uniride-7g6w.onrender.com';
     }
 
     // 3. Fallback for Local Development (Debugger Host)

@@ -234,6 +234,7 @@ export default function PassengerScreen() {
         <Image
           source={require('@/assets/images/logo.png')}
           style={styles(theme).logo}
+          resizeMode="contain"
         />
         <Text style={styles(theme).welcomeTitle}>
           {t('hello_passenger', { name: profile?.name || 'Yolcu' })}
@@ -328,7 +329,7 @@ export default function PassengerScreen() {
               <MaterialIcons
                 name="directions-car"
                 size={64}
-                color={theme.colors.textLight}
+                color={theme.colors.primary}
               />
               <Text style={styles(theme).emptyStateText}>
                 {t('no_rides_found')}
@@ -361,10 +362,11 @@ const styles = (theme: ThemeType) => StyleSheet.create({
     ...theme.shadows.base,
   },
   logo: {
-    width: 60,
-    height: 60,
+    width: 120,
+    height: 120,
     alignSelf: 'center',
     marginBottom: theme.spacing.md,
+    tintColor: '#FFFFFF',
   },
   welcomeTitle: {
     ...theme.textStyles.header2,

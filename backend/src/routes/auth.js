@@ -183,4 +183,60 @@ router.post('/validate-email', async (req, res) => {
   }
 });
 
-module.exports = router; 
+// Request data deletion route
+router.post('/request-data-deletion', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (!user) {
+      // For security, don't reveal if user exists or not
+      return res.json({ message: 'If an account exists for this email, a deletion request has been initiated.' });
+    }
+
+    // Mark as pending deletion
+    await prisma.user.update({
+      where: { email },
+      data: { status: 'PENDING_DELETION' }
+    });
+
+    const deletionHtml = `
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border: 1px solid #f0f0f0;">
+        <div style="background-color: #FF007A; padding: 20px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: bold;">UniRide</h1>
+        </div>
+        <div style="padding: 30px;">
+          <p style="color: #333333; font-size: 16px; line-height: 1.5;">Merhaba <strong>${user.name}</strong>,</p>
+          <p style="color: #555555; font-size: 16px; line-height: 1.5;">Hesap silme ve veri temizleme talebinizi aldık. Bu işlem kapsamında tüm kişisel verileriniz, sürüş geçmişiniz ve mesajlarınız 30 gün içerisinde kalıcı olarak silinecektir.</p>
+          <div style="background-color: #fff4f8; border-left: 4px solid #FF007A; padding: 15px; margin: 25px 0;">
+            <p style="color: #FF007A; font-weight: bold; margin: 0;">Bu işlemi siz yapmadıysanız, lütfen hemen şifrenizi değiştirin ve bizimle iletişime geçin.</p>
+          </div>
+          <p style="color: #888888; font-size: 14px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">Talebiniz işleme alınmıştır. Herhangi bir sorunuz olursa bu e-postayı yanıtlayabilirsiniz.</p>
+          <p style="color: #aaaaaa; font-size: 12px; text-align: center; margin-top: 20px;">© 2026 UniRide. Tüm hakları saklıdır.</p>
+        </div>
+      </div>
+    `;
+
+    try {
+      await sendEmail(email, 'UniRide: Hesap Silme Talebi Alındı', deletionHtml);
+      res.json({ message: 'If an account exists for this email, a deletion request has been initiated.' });
+    } catch (mailError) {
+      console.error('[AuthService] Deletion Email Failure:', mailError);
+      // Even if email fails, we've marked the account. But we should notify the user.
+      res.status(500).json({ message: 'Request recorded but confirmation email could not be sent. Please contact support.' });
+    }
+  } catch (error) {
+    console.error('Data deletion request error:', error);
+    res.status(500).json({ message: 'Server error during deletion request' });
+  }
+});
+
+module.exports = router;

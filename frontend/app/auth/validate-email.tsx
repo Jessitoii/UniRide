@@ -14,7 +14,7 @@ import {
   Button,
   Text,
 } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,6 +27,7 @@ const ValidateEmailScreen = () => {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const router = useRouter();
+  const { email } = useLocalSearchParams<{ email: string }>();
 
   const [validationCode, setValidationCode] = useState('');
   const [error, setError] = useState('');
@@ -43,6 +44,7 @@ const ValidateEmailScreen = () => {
 
     try {
       const response = await api.post<{ token: string }>('/api/auth/validate-email', {
+        email,
         code: validationCode
       });
 

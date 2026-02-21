@@ -10,6 +10,7 @@ import {
   Image,
   TouchableOpacity,
   Dimensions,
+  Linking,
 } from 'react-native';
 import {
   TextInput,
@@ -26,6 +27,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { lightTheme, darkTheme, ThemeType } from '../../src/styles/theme';
 import api from '../../config/api';
 import universities from '../../src/constants/Universities';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
 
@@ -146,7 +148,10 @@ const SignupScreen = () => {
       if (response.error) {
         setError(response.error);
       } else {
-        router.push('/auth/validate-email');
+        router.push({
+          pathname: '/auth/validate-email',
+          params: { email: formData.email }
+        });
       }
     } catch (error) {
       console.error('Signup failed:', error);
@@ -186,6 +191,10 @@ const SignupScreen = () => {
     handleInputChange('faculty', value);
     setFaculty(value);
     setError('');
+  };
+
+  const handleOpenPrivacyPolicy = () => {
+    Linking.openURL('https://jessitoii.github.io/UniRide-User-Terms-and-Conditions/');
   };
 
   const renderStep1 = () => (
@@ -414,7 +423,7 @@ const SignupScreen = () => {
   );
 
   return (
-    <View style={styles(theme).mainContainer}>
+    <SafeAreaView style={styles(theme).mainContainer}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       <LinearGradient
@@ -473,7 +482,17 @@ const SignupScreen = () => {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+
+      <View style={styles(theme).footer}>
+        <Text style={styles(theme).footerText}>
+          {"Devam ederek "}
+          <Text style={styles(theme).footerTextBold} onPress={handleOpenPrivacyPolicy}>
+            {"Kullanım Koşullarını"}
+          </Text>
+          {" kabul etmiş olursunuz."}
+        </Text>
+      </View>
+    </SafeAreaView>
   );
 };
 
@@ -633,6 +652,21 @@ const styles = (theme: ThemeType) => StyleSheet.create({
     color: theme.colors.textDark,
   },
   loginTextBold: {
+    color: theme.colors.primary,
+    fontWeight: '700',
+  },
+  footer: {
+    marginTop: 'auto',
+    paddingTop: theme.spacing.xs,
+    alignItems: 'center',
+  },
+  footerText: {
+    ...theme.textStyles.bodySmall,
+    color: theme.colors.textDark,
+    textAlign: 'center',
+    opacity: 0.7,
+  },
+  footerTextBold: {
     color: theme.colors.primary,
     fontWeight: '700',
   },
