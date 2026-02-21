@@ -66,6 +66,14 @@ model ValidationCode {
   code      String
   expiresAt DateTime
   createdAt DateTime @default(now())
+  
+  tempPassword   String?
+  tempName       String?
+  tempSurname    String?
+  tempGender     String?
+  tempBirthDate  DateTime?
+  tempUniversity String?
+  tempFaculty    String?
 }
 
 model Post {

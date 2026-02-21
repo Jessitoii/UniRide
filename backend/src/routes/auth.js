@@ -71,20 +71,15 @@ router.post('/signup', async (req, res) => {
         email,
         code: validationCode,
         expiresAt: validationExpiry,
+        tempPassword: hashedPassword,
+        tempName: name,
+        tempSurname: surname,
+        tempGender: gender,
+        tempBirthDate: new Date(birthDate),
+        tempUniversity: university,
+        tempFaculty: faculty,
       }
     });
-
-    // Store user data in session
-    req.session.pendingUser = {
-      email,
-      password: hashedPassword,
-      name,
-      surname,
-      gender,
-      birthDate: new Date(birthDate),
-      university,
-      faculty,
-    };
 
     // Define high-level mail options
     const mailOptions = {
@@ -133,17 +128,16 @@ router.post('/signup', async (req, res) => {
 // Validate email route
 router.post('/validate-email', async (req, res) => {
   try {
-    const { code } = req.body;
-    const pendingUser = req.session.pendingUser;
+    const { email, code } = req.body;
 
-    if (!pendingUser) {
-      return res.status(400).json({ message: 'No pending registration found' });
+    if (!email || !code) {
+      return res.status(400).json({ message: 'Email and code are required' });
     }
 
     // Verify validation code
     const validationRecord = await prisma.validationCode.findFirst({
       where: {
-        email: pendingUser.email,
+        email,
         code,
         expiresAt: { gt: new Date() }
       }
@@ -155,16 +149,22 @@ router.post('/validate-email', async (req, res) => {
 
     // Create user
     const user = await prisma.user.create({
-      data: pendingUser
+      data: {
+        email: validationRecord.email,
+        password: validationRecord.tempPassword,
+        name: validationRecord.tempName,
+        surname: validationRecord.tempSurname,
+        gender: validationRecord.tempGender,
+        birthDate: validationRecord.tempBirthDate,
+        university: validationRecord.tempUniversity,
+        faculty: validationRecord.tempFaculty,
+      }
     });
-
-
 
     // Clean up
-    await prisma.validationCode.delete({
-      where: { id: validationRecord.id }
+    await prisma.validationCode.deleteMany({
+      where: { email }
     });
-    delete req.session.pendingUser;
 
     // Create token
     const token = jwt.sign(
