@@ -14,6 +14,7 @@ export default function Header() {
     const pathname = usePathname();
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         setMounted(true);
     }, []);
 
@@ -46,7 +47,7 @@ export default function Header() {
                         href="/"
                         className="cursor-pointer px-6 py-2.5 rounded-full font-semibold transition-all hover:scale-105 bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-md hover:shadow-lg inline-flex items-center justify-center text-sm"
                     >
-                        UniRide'ı Keşfet
+                        {"UniRide'ı Keşfet"}
                     </Link>
                 )}
                 <button
